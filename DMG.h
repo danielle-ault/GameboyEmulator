@@ -27,6 +27,18 @@ enum class Flag
 	CY = 0b0001'0000,
 };
 
+enum class Operation
+{
+	ADD,
+	ADC,
+	SUB,
+	SBC,
+	AND,
+	OR,
+	XOR,
+	CP
+};
+
 struct Registers_t
 {
 	u8 A;
@@ -86,12 +98,13 @@ public:
 	int GetTotalMemoryMapSize();
 	int SetMemory(u16 address, u8 value);
 	int GetMemoryValue(u16 address);
+	void DisplayMemoryValue(u16 address);
 
 	u8 GetRegisterValue(Register reg);
 	void SetRegisterValue(Register reg, u8 value);
 	void DisplayRegister(Register reg, std::string name, bool newLine = true);
 	void DisplayRegisters();
-	char GetRegisterName(u8 reg);
+	std::string GetRegisterName(u8 reg);
 
 	u8 GetMaskedInstruction(u8 instruction);
 
@@ -101,9 +114,17 @@ public:
 	void ProcessInstruction(unsigned char instruction, int* programCounter, std::vector<u8>* ROM);
 
 	void DisplayInstructionString(u8 instruction);
+	void DisplayTransferString(std::string to, std::string from);
+	void DisplayTransferString(u8 to, u8 from);
+	void DisplayTransferString(std::string to, u8 from);
+	void DisplayTransferString(u8 to, std::string from);
+	void DisplayTransferString(std::string to, u16 from);
+	void DisplayTransferString(u16 to, std::string from);
+	void DisplayTransferString(u16 to, u8 from);
+	void DisplayTransferString(u8 to, u16 from);
 
 	////
-	//// Functions that run instructions
+	//// Instruction execution
 	////
 	
 	//
@@ -125,8 +146,11 @@ public:
 	// LD (HL),n
 	void LoadImmediateToHL(u8 immediateValue);
 	
-	// LD A,(BC)  and  LD A,(DE)
-	void LoadRegisterPairToA(u8 instruction);
+	// LD A,(BC)
+	void LoadBCToA(u8 instruction);
+
+	// LD A,(DE)
+	void LoadDEToA(u8 instruction);
 	
 	// LD A,(C)
 	void LoadCLowToA();
@@ -171,6 +195,34 @@ public:
 	//
 	// 8-bit arithmetic and logical operation instructions
 	//
+
+	void OperationFromRegister(Operation operation, u8 instruction);
+	void OperationFromImmediate(Operation operation, u8 instruction, u8 immediate);
+	void OperationFromHL(Operation operation, u8 instruction);
+
+	u8 PerformOperation(Operation operation, u8 left, u8 right);
+
+	u8 Add(u8 left, u8 right);
+	u8 AddWithCarry(u8 left, u8 right);
+	u8 Subtract(u8 left, u8 right);
+	u8 SubtractWithCarry(u8 left, u8 right);
+	u8 And(u8 left, u8 right);
+	u8 Or(u8 left, u8 right);
+	u8 Xor(u8 left, u8 right);
+	u8 Compare(u8 left, u8 right);
+
+	// INC r
+	void IncrementRegister(u8 instruction);
+	
+	// INC (HL)
+	void IncrementHL();
+
+	// DEC r
+	void DecrementRegister(u8 instruction);
+
+	// DEC (HL)
+	void DecrementHL();
+	
 
 	//
 	// 16-bit arithmetic operation instructions
