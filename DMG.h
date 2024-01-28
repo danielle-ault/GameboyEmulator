@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 
+typedef int8_t i8;
 typedef uint8_t u8;
 typedef uint16_t u16;
 
@@ -17,6 +18,23 @@ enum class Register
 	E = 0b011,
 	H = 0b100,
 	L = 0b101,
+};
+
+enum class RegisterPair
+{
+	BC = 0b00,
+	DE = 0b01,
+	HL = 0b10,
+	SP = 0b11,
+	AF = 0b11,
+};
+
+enum class Condition
+{
+	NZ = 0b00,
+	Z  = 0b01,
+	NC = 0b10,
+	C  = 0b11,
 };
 
 enum class Flag
@@ -84,24 +102,83 @@ struct MemoryMap
 	u8 workingAndStackRAM[0x7f];
 };
 
+struct InstructionInfo
+{
+	u8 Instruction;
+	u8 InstructionMasked;
+	u16 Address;
+	std::string ExtraInfo;
+
+	InstructionInfo(u8 instruction, u8 instructionMasked, u16 address)
+	  : Instruction(instruction),
+		InstructionMasked(instructionMasked),
+		Address(address),
+		ExtraInfo("")
+	{}
+};
+
+struct MemoryOperationInfo
+{
+	u16 Address;
+	u8 value;
+	char ReadWrite;
+};
+
 class DMG
 {
 public:
+	// Constants for the console display
+	const int CONSOLE_INSTRUCTION_INFO_WIDTH = 20;
+	const int CONSOLE_INSTRUCTION_WIDTH = 30;
+	const int CONSOLE_INSTRUCTION_TOTAL_WIDTH = CONSOLE_INSTRUCTION_WIDTH + CONSOLE_INSTRUCTION_INFO_WIDTH;
+
+	const int MEMORY_OPERATION_WIDTH = 25;
+
 	//MemoryMap Memory;
 	u8 Memory[0xFFFF] = { 0 };
 	Registers_t Registers = { 0 };
-	size_t ProgramCounter = 0;
+	
+	u16 ProgramCounter;
+	u16 StackPointer;
+	bool InterruptMasterEnable;
+	
 	std::vector<u8> ROM;
+
+	u8 CurrentInstruction;
+	u8 CurrentInstructionMasked;
+
+	std::vector<InstructionInfo> InstructionHistory;
+	std::vector<MemoryOperationInfo> MemoryOperationHistory;
 
 	DMG(std::vector<u8> ROM);
 
 	int GetTotalMemoryMapSize();
 	int SetMemory(u16 address, u8 value);
-	int GetMemoryValue(u16 address);
+	u8 GetMemory(u16 address);
 	void DisplayMemoryValue(u16 address);
+
+	InstructionInfo& GetLastInstruction();
+	MemoryOperationInfo& GetLastMemoryOperation();
+
+	void AddMemoryOperation(u16 address, u8 value, char readWrite);
 
 	u8 GetRegisterValue(Register reg);
 	void SetRegisterValue(Register reg, u8 value);
+
+	// When passed RegisterPair::AF, gets RegisterPair::SP
+	u16 GetRegisterPairValue(RegisterPair regPair);
+	// When passed RegisterPair::AF, sets RegisterPair::SP
+	void SetRegisterPairValue(RegisterPair regPair, u16 value);
+	// When passed RegisterPair::AF, sets RegisterPair::SP
+	void SetRegisterPairValue(RegisterPair regPair, u8 low, u8 high);
+
+	// Almost identical to GetRegisterPairValue, but returns AF instead of SP
+	u16 GetRegisterPairValuePushPop(RegisterPair regPair);
+	// Almost identical to SetRegisterPairValue, but sets AF instead of SP
+	void SetRegisterPairValuePushPop(RegisterPair regPair, u16 value);
+
+	bool TestCondition(Condition condition);
+
 	void DisplayRegister(Register reg, std::string name, bool newLine = true);
 	void DisplayRegisters();
 	std::string GetRegisterName(u8 reg);
@@ -110,18 +187,30 @@ public:
 
 	void SetFlag(Flag flag, bool value);
 	bool GetFlag(Flag flag);
+	void SetFlagRegister(u8 value);
+	u8 GetFlagRegister();
 
-	void ProcessInstruction(unsigned char instruction, int* programCounter, std::vector<u8>* ROM);
+	void ProcessNextInstruction();
 
-	void DisplayInstructionString(u8 instruction);
-	void DisplayTransferString(std::string to, std::string from);
-	void DisplayTransferString(u8 to, u8 from);
-	void DisplayTransferString(std::string to, u8 from);
-	void DisplayTransferString(u8 to, std::string from);
-	void DisplayTransferString(std::string to, u16 from);
-	void DisplayTransferString(u16 to, std::string from);
-	void DisplayTransferString(u16 to, u8 from);
-	void DisplayTransferString(u8 to, u16 from);
+	void DisplayInstructionHistory(short consoleWidth, short consoleHeight);
+	void DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo);
+	void DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight);
+	void DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info);
+	void DisplayStateInfo(short consoleWidth, short consoleHeight);
+	void DisplayRegister(Register reg, short x, short y);
+	void DisplayFlags(int x, int y);
+	void DisplayAllRegisters(short x, short y);
+
+
+	
+	std::string DisplayTransferString(std::string to, std::string from);
+	std::string DisplayTransferString(u8 to, u8 from);
+	std::string DisplayTransferString(std::string to, u8 from);
+	std::string DisplayTransferString(u8 to, std::string from);
+	std::string DisplayTransferString(std::string to, u16 from);
+	std::string DisplayTransferString(u16 to, std::string from);
+	std::string DisplayTransferString(u16 to, u8 from);
+	std::string DisplayTransferString(u8 to, u16 from);
 
 	////
 	//// Instruction execution
@@ -192,6 +281,21 @@ public:
 	// LD dd,nn
 	void LoadImmediateToRegisterPair(u8 instruction, u8 immediateLow, u8 immediateHigh);
 
+	// LD SP,HL
+	void LoadHLToStackPointer();
+
+	// PUSH qq
+	void PushRegisterPairToStack(u8 instruction);
+
+	// POP qq
+	void PopFromStackToRegisterPair(u8 instruction);
+
+	// LDHL SP,e
+	void LoadStackPointerPlusOffsetToHL(i8 offset);
+
+	// LD (nn),SP
+	void LoadStackPointerToImmediateAddress(u8 addressLow, u8 addressHigh);
+
 	//
 	// 8-bit arithmetic and logical operation instructions
 	//
@@ -202,9 +306,9 @@ public:
 
 	u8 PerformOperation(Operation operation, u8 left, u8 right);
 
-	u8 Add(u8 left, u8 right);
+	u8 Add(u8 left, u8 right, bool setCarryFlag = true);
 	u8 AddWithCarry(u8 left, u8 right);
-	u8 Subtract(u8 left, u8 right);
+	u8 Subtract(u8 left, u8 right, bool setCarryFlag = true);
 	u8 SubtractWithCarry(u8 left, u8 right);
 	u8 And(u8 left, u8 right);
 	u8 Or(u8 left, u8 right);
@@ -240,6 +344,21 @@ public:
 	// Jump instructions
 	//
 
+	// JP nn
+	void JumpToImmediate(u8 addressLow, u8 addressHigh);
+
+	// JP cc,nn
+	void JumpToImmediateIfTrue(u8 instruction, u8 addressLow, u8 addressHigh);
+
+	// JR e
+	void JumpToOffset(i8 offset);
+
+	// JR cc,e
+	void JumpToOffsetIfTrue(u8 instruction, i8 offset);
+
+	// JP (HL)
+	void JumpToHL();
+
 	//
 	// Call/return instructions
 	//
@@ -247,6 +366,37 @@ public:
 	//
 	// Gen-purpose arithmetic/CPU control instructions
 	//
+
+
+
+
+
+	// Port/Mode Registers
+	static const u16 REGISTER_P1   = 0xFF00;
+	static const u16 REGISTER_SB   = 0xFF01;
+	static const u16 REGISTER_SC   = 0xFF02;
+	static const u16 REGISTER_DIV  = 0xFF04;
+	static const u16 REGISTER_TIMA = 0xFF05;
+	static const u16 REGISTER_TMA  = 0xFF06;
+	static const u16 REGISTER_TAC  = 0xFF07;
+
+	// Interrupt Flags
+	static const u16 REGISTER_IF = 0xFF0F;
+	static const u16 REGISTER_IE = 0xFFFF;
+
+	// LCD Display Registers
+	static const u16 REGISTER_LCDC = 0xFF40;
+	static const u16 REGISTER_STAT = 0xFF41;
+	static const u16 REGISTER_SCY  = 0XFF42;
+	static const u16 REGISTER_SCX  = 0XFF43;
+	static const u16 REGISTER_LY   = 0XFF44;
+	static const u16 REGISTER_LYC  = 0XFF45;
+	static const u16 REGISTER_DMA  = 0XFF46;
+	static const u16 REGISTER_BGP  = 0XFF47;
+	static const u16 REGISTER_OBP0 = 0XFF48;
+	static const u16 REGISTER_OBP1 = 0XFF49;
+	static const u16 REGISTER_WY   = 0XFF4A;
+	static const u16 REGISTER_WX   = 0XFF4B;
 
 
 	// Instruction bit masks

@@ -1,9 +1,12 @@
 #include <iostream>
+#include <sstream>
 #include "DMG.h"
+#include "Utils.h"
 
 DMG::DMG(std::vector<u8> ROM)
 {
 	this->ROM = ROM;
+	ProgramCounter = 0x100;
 }
 
 int DMG::GetTotalMemoryMapSize()
@@ -14,13 +17,16 @@ int DMG::GetTotalMemoryMapSize()
 
 int DMG::SetMemory(u16 address, u8 value)
 {
+	AddMemoryOperation(address, value, 'W');
 	Memory[address] = value;
 	return 0;
 }
 
-int DMG::GetMemoryValue(u16 address)
+u8 DMG::GetMemory(u16 address)
 {
-	return Memory[address];
+	u8 value = Memory[address];
+	AddMemoryOperation(address, value, 'R');
+	return value;
 }
 
 void DMG::DisplayMemoryValue(u16 address)
@@ -28,6 +34,26 @@ void DMG::DisplayMemoryValue(u16 address)
 	std::cout << "\n0x" << std::hex << address << ": " << std::hex << Memory[address];
 }
 
+InstructionInfo& DMG::GetLastInstruction()
+{
+	return InstructionHistory[InstructionHistory.size() - 1];
+}
+
+MemoryOperationInfo& DMG::GetLastMemoryOperation()
+{
+	return MemoryOperationHistory[MemoryOperationHistory.size() - 1];
+}
+
+void DMG::AddMemoryOperation(u16 address, u8 value, char readWrite)
+{
+	MemoryOperationInfo info;
+	info.Address = address;
+	info.value = value;
+	info.ReadWrite = readWrite;
+	MemoryOperationHistory.push_back(info);
+}
+
+// TODO: lol why am I using this instead of accessing Registers.X directly?
 u8 DMG::GetRegisterValue(Register reg)
 {
 	switch (reg)
@@ -55,6 +81,125 @@ void DMG::SetRegisterValue(Register reg, u8 value)
 		case Register::E: Registers.E = value; break;
 		case Register::H: Registers.H = value; break;
 		case Register::L: Registers.L = value; break;
+	}
+}
+
+u16 DMG::GetRegisterPairValue(RegisterPair regPair)
+{
+	u8 low = 0, high = 0;
+	switch (regPair)
+	{
+	case RegisterPair::BC:
+		high = GetRegisterValue(Register::B);
+		low = GetRegisterValue(Register::C);
+		break;
+	case RegisterPair::DE:
+		high = GetRegisterValue(Register::D);
+		low = GetRegisterValue(Register::E);
+		break;
+	case RegisterPair::HL:
+		high = GetRegisterValue(Register::H);
+		low = GetRegisterValue(Register::L);
+		break;
+	case RegisterPair::SP:
+		high = (StackPointer & 0xFF00) >> 8;
+		low = StackPointer & 0x00FF;
+		break;
+	}
+
+	return ((u16)high << 8) | low;
+}
+
+void DMG::SetRegisterPairValue(RegisterPair regPair, u16 value)
+{
+	u8 low = value & 0xFF;
+	u8 high = (value & 0xFF00) >> 8;
+	SetRegisterPairValue(regPair, low, high);
+}
+
+void DMG::SetRegisterPairValue(RegisterPair regPair, u8 low, u8 high)
+{
+	switch (regPair)
+	{
+	case RegisterPair::BC:
+		SetRegisterValue(Register::B, high);
+		SetRegisterValue(Register::C, low);
+		break;
+	case RegisterPair::DE:
+		SetRegisterValue(Register::D, high);
+		SetRegisterValue(Register::E, low);
+		break;
+	case RegisterPair::HL:
+		SetRegisterValue(Register::H, high);
+		SetRegisterValue(Register::L, low);
+		break;
+	case RegisterPair::SP:
+		StackPointer = (high << 8) | low;
+		break;
+	}
+}
+
+u16 DMG::GetRegisterPairValuePushPop(RegisterPair regPair)
+{
+	u8 low = 0, high = 0;
+	switch (regPair)
+	{
+	case RegisterPair::BC:
+		high = GetRegisterValue(Register::B);
+		low = GetRegisterValue(Register::C);
+		break;
+	case RegisterPair::DE:
+		high = GetRegisterValue(Register::D);
+		low = GetRegisterValue(Register::E);
+		break;
+	case RegisterPair::HL:
+		high = GetRegisterValue(Register::H);
+		low = GetRegisterValue(Register::L);
+		break;
+	case RegisterPair::AF:
+		high = GetRegisterValue(Register::A);
+		low = GetFlagRegister();
+		break;
+	}
+
+	return (high << 8) | low;
+}
+
+void DMG::SetRegisterPairValuePushPop(RegisterPair regPair, u16 value)
+{
+	u8 high = (value & 0xFF00) >> 8;
+	u8 low = value & 0x00FF;
+
+	switch (regPair)
+	{
+	case RegisterPair::BC:
+		SetRegisterValue(Register::B, high);
+		SetRegisterValue(Register::C, low);
+		break;
+	case RegisterPair::DE:
+		SetRegisterValue(Register::D, high);
+		SetRegisterValue(Register::E, low);
+		break;
+	case RegisterPair::HL:
+		SetRegisterValue(Register::H, high);
+		SetRegisterValue(Register::L, low);
+		break;
+	case RegisterPair::AF:
+		SetRegisterValue(Register::A, high);
+		SetFlagRegister(low);
+		break;
+	}
+}
+
+bool DMG::TestCondition(Condition condition)
+{
+	switch (condition)
+	{
+		case Condition::NZ: return GetFlag(Flag::Z) == 0;
+		case Condition::Z:  return GetFlag(Flag::Z) == 1;
+		case Condition::NC: return GetFlag(Flag::CY) == 0;
+		case Condition::C:  return GetFlag(Flag::CY) == 1;
+		default: return 0;
 	}
 }
 
@@ -100,6 +245,9 @@ u8 DMG::GetMaskedInstruction(u8 instruction)
 	u8 maskedRegisterBoth = REGISTER_MASK_BOTH & instruction;
 	u8 maskedRegisterPair = REGISTER_PAIR_MASK & instruction;
 	u8 maskedJumpCondition = JUMP_CONDITION_MASK & instruction;
+
+	if (INSTRUCTION_STRINGS.find(instruction) != INSTRUCTION_STRINGS.end())
+		return instruction;
 
 	switch (maskedRegister1)
 	{
@@ -149,8 +297,6 @@ u8 DMG::GetMaskedInstruction(u8 instruction)
 		case CALL_CC_NN:
 			return maskedJumpCondition;
 	}
-	
-	return instruction;
 }
 
 void DMG::SetFlag(Flag flag, bool value)
@@ -183,7 +329,21 @@ bool DMG::GetFlag(Flag flag)
 	return false;
 }
 
-void DMG::ProcessInstruction(unsigned char instruction, int* programCounter, std::vector<u8>* ROM_param)
+void DMG::SetFlagRegister(u8 value)
+{
+	Registers.F = value;
+}
+
+u8 DMG::GetFlagRegister()
+{
+	u8 Z = GetFlag(Flag::Z);
+	u8 N = GetFlag(Flag::Z);
+	u8 H = GetFlag(Flag::Z);
+	u8 CY = GetFlag(Flag::Z);
+	return (Z << 7) | (N << 6) | (H << 5) | (CY << 4);
+}
+
+void DMG::ProcessNextInstruction()
 {
 	// TODO make these masks consts outside of this function
 
@@ -193,13 +353,18 @@ void DMG::ProcessInstruction(unsigned char instruction, int* programCounter, std
 	u8 maskedRegisterPair = REGISTER_PAIR_MASK & instruction;
 	u8 maskedJumpCondition = JUMP_CONDITION_MASK & instruction;*/
 	
-	ProgramCounter = *programCounter;
+	//ProgramCounter = *programCounter;
+	CurrentInstruction = ROM[ProgramCounter];
+	CurrentInstructionMasked = GetMaskedInstruction(CurrentInstruction);
 
-	u8 maskedInstruction = GetMaskedInstruction(instruction);
+	InstructionInfo instructionInfo = InstructionInfo(CurrentInstruction, CurrentInstructionMasked, ProgramCounter);
+	InstructionHistory.push_back(instructionInfo);
+	
+	u8 instruction = CurrentInstruction;
 	u8 nextByte = ROM[ProgramCounter + 1];
 	u8 nextNextByte = ROM[ProgramCounter + 2];
 
-	switch (maskedInstruction)
+	switch (CurrentInstructionMasked)
 	{
 		case LD_R_R:  LoadRegisterToRegister(instruction); break;
 		case LD_R_N:  LoadImmediateToRegister(instruction, nextByte); break;
@@ -214,6 +379,19 @@ void DMG::ProcessInstruction(unsigned char instruction, int* programCounter, std
 		case LD_N_A:  LoadAToImmediateLow(nextByte); break;
 		case LD_A_NN: LoadImmediateAddressToA(nextByte, nextNextByte); break;
 		case LD_NN_A: LoadAToImmediateAddress(nextByte, nextNextByte); break;
+		case LD_A_HLI: LoadHLIToA(); break;
+		case LD_A_HLD: LoadHLDToA(); break;
+		case LD_BC_A:
+		case LD_DE_A:  LoadAToRegisterPair(instruction); break;
+		case LD_HLI_A: LoadAToHLI(); break;
+		case LD_HLD_A: LoadAToHLD(); break;
+
+		case LD_DD_NN: LoadImmediateToRegisterPair(instruction, nextByte, nextNextByte); break;
+		case LD_SP_HL: LoadHLToStackPointer(); break;
+		case PUSH_QQ:  PushRegisterPairToStack(instruction); break;
+		case POP_QQ:   PopFromStackToRegisterPair(instruction); break;
+		case LDHL_SP_E: LoadStackPointerPlusOffsetToHL(nextByte); break;
+		case LD_NN_SP: LoadStackPointerToImmediateAddress(nextByte, nextNextByte); break;
 
 		case ADD_A_R:  OperationFromRegister(Operation::ADD, instruction); break;
 		case ADD_A_N:  OperationFromImmediate(Operation::ADD, instruction, nextByte); break;
@@ -244,152 +422,186 @@ void DMG::ProcessInstruction(unsigned char instruction, int* programCounter, std
 		case DEC_R:  DecrementRegister(instruction); break;
 		case DEC_HL: DecrementHL(); break;
 
+		case JP_NN:    JumpToImmediate(nextByte, nextNextByte); break;
+		case JP_CC_NN: JumpToImmediateIfTrue(instruction, nextByte, nextNextByte); break;
+		case JR_E:     JumpToOffset(nextByte); break; // TODO: verify that this converts to negative correctly
+		case JR_CC_E:  JumpToOffsetIfTrue(instruction, nextByte); break;
+		case JP_HL:    JumpToHL(); break;
+
 		default:
 			ProgramCounter++;
-			DisplayInstructionString(maskedInstruction);
-			DisplayRegisters();
+			//DisplayInstructionString(CurrentInstructionMasked);
+			//DisplayRegisters();
 	}
 
-	*programCounter = ProgramCounter;
+	//DisplayInstructionInfo();
+}
 
-	return;
-	
-	if (maskedInstruction == LD_R_R)
-	{
-		
-	}
-	else if (maskedInstruction == LD_R_N)
-	{
-		
-	}
-	else if (maskedInstruction == LD_R_HL)
-	{
-		
-	}
-	else if (maskedInstruction == LD_HL_R)
-	{
-		
-	}
-	else if (maskedInstruction == LD_HL_N)
-	{
-		(*programCounter)++;
-		DisplayInstructionString(maskedInstruction);
-	}
+void DMG::DisplayInstructionHistory(short consoleWidth, short consoleHeight)
+{
+	int topPadding = 3;
+	Utils::DrawHorizontalLineOnConsole(0, 0, CONSOLE_INSTRUCTION_TOTAL_WIDTH - 1);
+	Utils::DrawHorizontalLineOnConsole(0, topPadding - 1, CONSOLE_INSTRUCTION_TOTAL_WIDTH - 1);
+	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_WIDTH, 1, topPadding - 2);
+	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_WIDTH, topPadding, consoleHeight - topPadding);
 
-	else if (maskedInstruction == JP_NN)
+	if (InstructionHistory.size() > 0)
+		DisplayInstructionInfoString(0, 1, GetLastInstruction());
+
+	for (int i = 0; i < consoleHeight - topPadding; i++)
 	{
-		u8 addressLow = (*ROM_param)[++(*programCounter)];
-		u8 addressHigh = (*ROM_param)[++(*programCounter)];
-		u16 address = (addressHigh << 8) + addressLow;
-		*programCounter = address;
-		DisplayInstructionString(maskedInstruction);
-	}
-	else if (maskedInstruction == JP_CC_NN)
-	{
-		(*programCounter)++;
-		DisplayInstructionString(maskedInstruction);
-	}
-	else if (maskedInstruction == JR_E)
-	{
-		int8_t e = (*ROM_param)[*programCounter + 1] + 2;
-		*programCounter += e;
-		DisplayInstructionString(maskedInstruction);
-		std::cout << (int)e;
-	}
-	else if (maskedInstruction == JR_CC_E)
-	{
-		(*programCounter)++;
-		DisplayInstructionString(maskedInstruction);
-	}
-	else if (maskedInstruction == JP_HL)
-	{
-		(*programCounter)++;
-		DisplayInstructionString(maskedInstruction);
-	}
-	else // eventually when all instructions are implemented, this else statement should throw an error
-	{
-		(*programCounter)++;
-		DisplayInstructionString(maskedInstruction);
+		int index = InstructionHistory.size() - 2 - i;
+		if (index >= 0)
+			DisplayInstructionInfoString(0, i + topPadding, InstructionHistory[index]);
 	}
 }
 
-void DMG::DisplayInstructionString(u8 instruction)
+void DMG::DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo)
 {
-	// TODO: These declarations of the masked instruction are repeated here and in DMG::ProcessInstruction. Figure out a better way to do this.
-	u8 maskedRegister1 = REGISTER_MASK_1 & instruction;
-	u8 maskedRegister2 = REGISTER_MASK_2 & instruction;
-	u8 maskedRegister3 = REGISTER_MASK_BOTH & instruction;
-	u8 maskedRegisterPair = REGISTER_PAIR_MASK & instruction;
-	u8 maskedJumpCondition = JUMP_CONDITION_MASK & instruction;
+	u8 instruction = instructionInfo.Instruction;
+	u8 maskedInstruction = GetMaskedInstruction(instruction);
 
 	std::string instructionString;
 
-	if (INSTRUCTION_STRINGS.find(maskedRegister1) != INSTRUCTION_STRINGS.end())
+	if (INSTRUCTION_STRINGS.find(maskedInstruction) != INSTRUCTION_STRINGS.end())
 	{
-		instructionString = INSTRUCTION_STRINGS.at(maskedRegister1);
-	}
-	else if (INSTRUCTION_STRINGS.find(maskedRegister2) != INSTRUCTION_STRINGS.end())
-	{
-		instructionString = INSTRUCTION_STRINGS.at(maskedRegister2);
-	}
-	else if (INSTRUCTION_STRINGS.find(maskedRegister3) != INSTRUCTION_STRINGS.end())
-	{
-		instructionString = INSTRUCTION_STRINGS.at(maskedRegister3);
-	}
-	else if (INSTRUCTION_STRINGS.find(maskedRegisterPair) != INSTRUCTION_STRINGS.end())
-	{
-		instructionString = INSTRUCTION_STRINGS.at(maskedRegisterPair);
-	}
-	else if (INSTRUCTION_STRINGS.find(maskedJumpCondition) != INSTRUCTION_STRINGS.end())
-	{
-		instructionString = INSTRUCTION_STRINGS.at(maskedJumpCondition);
-	}
-	else if (INSTRUCTION_STRINGS.find(instruction) != INSTRUCTION_STRINGS.end())
-	{
-		instructionString = INSTRUCTION_STRINGS.at(instruction);
+		instructionString = INSTRUCTION_STRINGS.at(maskedInstruction);
 	}
 
+	Utils::gotoxy(x, y);
+	std::cout << Utils::GetHexString(instructionInfo.Address) << ": ";
+	std::cout << Utils::GetBinary(instructionInfo.Instruction) << " 0x";
+	std::cout << Utils::GetHexString(instructionInfo.Instruction) << " ";
 	std::cout << instructionString;
+
+	Utils::gotoxy(x + CONSOLE_INSTRUCTION_WIDTH + 2, y);
+	std::cout << instructionInfo.ExtraInfo;
 }
 
-void DMG::DisplayTransferString(std::string to, std::string from)
+void DMG::DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight)
 {
-	std::cout << " " << to << "<-" << from;
+	int topPadding = 3;
+	int startX = consoleWidth - MEMORY_OPERATION_WIDTH;
+	
+	Utils::DrawHorizontalLineOnConsole(startX, 0, MEMORY_OPERATION_WIDTH);
+	Utils::DrawHorizontalLineOnConsole(startX, topPadding - 1, MEMORY_OPERATION_WIDTH);
+	Utils::DrawVerticalLineOnConsole(startX, 1, topPadding - 2);
+	Utils::DrawVerticalLineOnConsole(startX, topPadding, consoleHeight - topPadding);
+
+	if (MemoryOperationHistory.size() > 0)
+		DisplayMemoryOperationString(startX + 2, 1, GetLastMemoryOperation());
+
+	for (int i = 0; i < consoleHeight - topPadding; i++)
+	{
+		int index = MemoryOperationHistory.size() - 2 - i;
+		if (index >= 0)
+			DisplayMemoryOperationString(startX + 2, i + topPadding, MemoryOperationHistory[index]);
+	}
 }
 
-void DMG::DisplayTransferString(u8 to, u8 from)
+void DMG::DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info)
 {
-	std::cout << " " << std::hex << (u16)to << "<-" << std::hex << (u16)from;
+	Utils::gotoxy(x, y);
+	std::cout << info.ReadWrite << " - ";
+	std::cout << Utils::GetHexString(info.Address, true) << ": ";
+	std::cout << Utils::GetHexString(info.value);
 }
 
-void DMG::DisplayTransferString(std::string to, u8 from)
+void DMG::DisplayStateInfo(short consoleWidth, short consoleHeight)
 {
-	std::cout << " " << to << "<-" << std::hex << (u16)from;
+	//consoleWidth = Utils::GetConsoleWidth();/*
+	//consoleHeight = Utils::GetConsoleHeight();*/
+
+	Utils::ClearConsole();
+	DisplayInstructionHistory(consoleWidth, consoleHeight);
+	DisplayMemoryOperationHistory(consoleWidth, consoleHeight);
+	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_TOTAL_WIDTH, 0, Utils::GetConsoleHeight());
+	DisplayAllRegisters(CONSOLE_INSTRUCTION_TOTAL_WIDTH + 2, 0);
 }
 
-void DMG::DisplayTransferString(u8 to, std::string from)
+void DMG::DisplayRegister(Register reg, short x, short y)
 {
-	std::cout << " " << std::hex << (u16)to << "<-" << from;
+	Utils::gotoxy(x, y);
+	std::cout << GetRegisterName((u8)reg);
+	std::cout << ": " << std::hex << (u16)GetRegisterValue(reg) << " ";
+	//Utils::gotoxy(0, 0);
 }
 
-void DMG::DisplayTransferString(std::string to, u16 from)
+void DMG::DisplayFlags(int x, int y)
 {
-	std::cout << " " << to << "<-(" << from << ")";
+	Utils::gotoxy(x, y);
+	std::cout << "Z | N | H | CY";
+	Utils::gotoxy(x, y + 1);
+	std::cout << GetFlag(Flag::Z);
+	std::cout << " | " << GetFlag(Flag::N);
+	std::cout << " | " << GetFlag(Flag::H);
+	std::cout << " |  " << GetFlag(Flag::CY);
 }
 
-void DMG::DisplayTransferString(u16 to, std::string from)
+void DMG::DisplayAllRegisters(short x, short y)
 {
-	std::cout << " (" << to << ")<-" << from;
+	DisplayRegister(Register::A, x, y);
+	DisplayRegister(Register::B, x, y + 1);
+	DisplayRegister(Register::C, x, y + 2);
+	DisplayRegister(Register::D, x, y + 3);
+	DisplayRegister(Register::E, x, y + 4);
+	DisplayRegister(Register::H, x, y + 5);
+	DisplayRegister(Register::L, x, y + 6);
+	DisplayFlags(x, y + 8);
 }
 
-void DMG::DisplayTransferString(u16 to, u8 from)
+std::string DMG::DisplayTransferString(std::string to, std::string from)
 {
-	std::cout << " (" << to << ")<-" << std::hex << (u16)from;
+	return to + "<-" + from;
 }
 
-void DMG::DisplayTransferString(u8 to, u16 from)
+std::string DMG::DisplayTransferString(u8 to, u8 from)
 {
-	std::cout << " " << std::hex << (u16)to << "<-(" << from << ")";
+	std::stringstream stream;
+	stream << Utils::GetHexString(to) << "<-" << Utils::GetHexString(from);
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(std::string to, u8 from)
+{
+	std::stringstream stream;
+	stream << to << "<-" << Utils::GetHexString(from);
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(u8 to, std::string from)
+{
+	std::stringstream stream;
+	stream << Utils::GetHexString(to) << "<-" << from;
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(std::string to, u16 from)
+{
+	std::stringstream stream;
+	stream << to << "<-(" << Utils::GetHexString(from) << ")";
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(u16 to, std::string from)
+{
+	std::stringstream stream;
+	stream << "(" << Utils::GetHexString(to) << ")<-" << from;
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(u16 to, u8 from)
+{
+	std::stringstream stream;
+	stream << "(" << Utils::GetHexString(to) << ")<-" << Utils::GetHexString(from);
+	return stream.str();
+}
+
+std::string DMG::DisplayTransferString(u8 to, u16 from)
+{
+	std::stringstream stream;
+	stream << Utils::GetHexString(to) << "<-(" << Utils::GetHexString(from) << ")";
+	return stream.str();
 }
 
 //
@@ -403,11 +615,12 @@ void DMG::LoadRegisterToRegister(u8 instruction)
 	u8 valueToLoad = GetRegisterValue((Register)registerToLoad); // TODO: do I need to cast to Register here, or pass a u8?
 	SetRegisterValue((Register)registerToLoadTo, valueToLoad);
 	
-	ProgramCounter++;
 
-	DisplayInstructionString(LD_R_R);
-	DisplayTransferString(GetRegisterName(registerToLoadTo), GetRegisterName(registerToLoad));
-	DisplayRegisters();
+
+	ProgramCounter++;
+	
+	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), GetRegisterName(registerToLoad));
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
 }
 
 void DMG::LoadImmediateToRegister(u8 instruction, u8 immediateValue)
@@ -417,9 +630,10 @@ void DMG::LoadImmediateToRegister(u8 instruction, u8 immediateValue)
 	
 	ProgramCounter = ProgramCounter + 2;
 	
-	DisplayInstructionString(instruction);
-	DisplayTransferString(GetRegisterName(registerToLoadTo), immediateValue);
-	DisplayRegisters();
+//	DisplayInstructionString(instruction);
+	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), immediateValue);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayRegisters();
 }
 
 void DMG::LoadHLToRegister(u8 instruction)
@@ -428,14 +642,15 @@ void DMG::LoadHLToRegister(u8 instruction)
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	SetRegisterValue((Register)registerToLoadTo, Memory[address]);
+	SetRegisterValue((Register)registerToLoadTo, GetMemory(address));
 
 	ProgramCounter++;
 	
-	DisplayInstructionString(LD_R_HL);
-	DisplayTransferString(GetRegisterName(registerToLoadTo), address);
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_R_HL);
+	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), address);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	////DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadRegisterToHL(u8 instruction)
@@ -445,14 +660,15 @@ void DMG::LoadRegisterToHL(u8 instruction)
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = registerValue;
+	SetMemory(address, registerValue);
 
 	ProgramCounter++;
 	
-	DisplayInstructionString(LD_HL_R);
-	DisplayTransferString(address, GetRegisterName(registerToLoad));
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_HL_R);
+	std::string transferString = DisplayTransferString(address, GetRegisterName(registerToLoad));
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	////DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadImmediateToHL(u8 immediateValue)
@@ -461,14 +677,15 @@ void DMG::LoadImmediateToHL(u8 immediateValue)
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = immediateValue;
+	SetMemory(address, immediateValue);
 
 	ProgramCounter += 2;
 
-	DisplayInstructionString(LD_HL_N);
-	DisplayTransferString("(HL)", immediateValue);
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_HL_N);
+	std::string transferString = DisplayTransferString("(HL)", immediateValue);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	////DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadBCToA(u8 instruction)
@@ -476,14 +693,15 @@ void DMG::LoadBCToA(u8 instruction)
 	u8 addressLow = GetRegisterValue(Register::C);
 	u8 addressHigh = GetRegisterValue(Register::B);
 	u16 address = (addressHigh << 8) + addressLow;
-	SetRegisterValue(Register::A, Memory[address]);
+	SetRegisterValue(Register::A, GetMemory(address));
 
 	ProgramCounter++;
 
-	DisplayInstructionString(LD_A_BC);
-	DisplayTransferString("A", "(BC)");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_BC);
+	std::string transferString = DisplayTransferString("A", "(BC)");
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	////DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadDEToA(u8 instruction)
@@ -491,14 +709,15 @@ void DMG::LoadDEToA(u8 instruction)
 	u8 addressLow = GetRegisterValue(Register::E);
 	u8 addressHigh = GetRegisterValue(Register::D);
 	u16 address = (addressHigh << 8) + addressLow;
-	SetRegisterValue(Register::A, Memory[address]);
+	SetRegisterValue(Register::A, GetMemory(address));
 
 	ProgramCounter++;
 
-	DisplayInstructionString(LD_A_DE);
-	DisplayTransferString("A", "(DE)");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_DE);
+	std::string transferString = DisplayTransferString("A", "(DE)");
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	////DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadCLowToA()
@@ -506,14 +725,15 @@ void DMG::LoadCLowToA()
 	u8 addressLow = GetRegisterValue(Register::C);
 	u8 addressHigh = 0xFFFF0000;
 	u16 address = (addressHigh << 8) + addressLow;
-	SetRegisterValue(Register::A, Memory[address]);
+	SetRegisterValue(Register::A, GetMemory(address));
 
 	ProgramCounter++;
 
-	DisplayInstructionString(LD_A_C);
-	DisplayTransferString("A", "(C)");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_C);
+	std::string transferString = DisplayTransferString("A", "(C)");
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadAToCLow()
@@ -521,61 +741,175 @@ void DMG::LoadAToCLow()
 	u8 addressLow = GetRegisterValue(Register::C);
 	u8 addressHigh = 0xFFFF0000;
 	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = GetRegisterValue(Register::A);
+	SetMemory(address, GetRegisterValue(Register::A));
 
 	ProgramCounter++;
 
-	DisplayInstructionString(LD_A_C);
-	DisplayTransferString("(C)", "A");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_C);
+	std::string transferString = DisplayTransferString("(C)", "A");
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadImmediateLowToA(u8 immediateValue)
 {
 	u8 addressHigh = 0xFFFF0000;
 	u16 address = (addressHigh << 8) + immediateValue;
-	SetRegisterValue(Register::A, Memory[address]);
+	SetRegisterValue(Register::A, GetMemory(address));
 
 	ProgramCounter += 2;
 
-	DisplayInstructionString(LD_A_N);
-	DisplayTransferString("A", "(n)");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_N);
+	std::string transferString = DisplayTransferString("A", address);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadAToImmediateLow(u8 immediateValue)
 {
-	u8 addressLow = GetRegisterValue(Register::C);
 	u8 addressHigh = 0xFFFF0000;
-	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = GetRegisterValue(Register::A);
+	u16 address = ((u16)addressHigh << 8) + immediateValue;
+	SetMemory(address, GetRegisterValue(Register::A));
 
 	ProgramCounter += 2;
 
-	DisplayInstructionString(LD_A_C);
-	DisplayTransferString("(C)", "A");
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_C);
+	std::string transferString = DisplayTransferString(address, "A");
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadImmediateAddressToA(u8 immediateLow, u8 immediateHigh)
 {
-	u16 address = (immediateHigh << 8) + immediateLow;
-	SetRegisterValue(Register::A, Memory[address]);
+	u16 address = (immediateHigh << 8) | immediateLow;
+	u8 memoryAtAddress = GetMemory(address);
+	SetRegisterValue(Register::A, memoryAtAddress);
 
 	ProgramCounter += 3;
 
-	DisplayInstructionString(LD_A_NN);
-	DisplayTransferString("A", Memory[address]);
-	DisplayMemoryValue(address);
-	DisplayRegisters();
+//	DisplayInstructionString(LD_A_NN);
+	std::string transferString = DisplayTransferString("A", memoryAtAddress);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	//DisplayMemoryValue(address);
+	//DisplayRegisters();
 }
 
 void DMG::LoadAToImmediateAddress(u8 immediateLow, u8 immediateHigh)
 {
+	u16 address = ((u16)immediateHigh << 8) | immediateLow;
+	SetMemory(address, GetRegisterValue(Register::A));
 
+	ProgramCounter += 3;
+
+	std::string transferString = DisplayTransferString(address, Registers.A);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+}
+
+void DMG::LoadHLIToA()
+{
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	SetRegisterValue(Register::A, GetMemory(HL));
+	SetRegisterPairValue(RegisterPair::HL, HL + 1);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadHLDToA()
+{
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	SetRegisterValue(Register::A, GetMemory(HL));
+	SetRegisterPairValue(RegisterPair::HL, HL - 1);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadAToRegisterPair(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00111000) >> 3);
+	u16 address = GetRegisterPairValue(regPair);
+	SetMemory(address, GetRegisterValue(Register::A));
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadAToHLI()
+{
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	SetMemory(HL, GetRegisterValue(Register::A));
+	SetRegisterPairValue(RegisterPair::HL, HL + 1);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadAToHLD()
+{
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	SetMemory(HL, GetRegisterValue(Register::A));
+	SetRegisterPairValue(RegisterPair::HL, HL - 1);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadImmediateToRegisterPair(u8 instruction, u8 immediateLow, u8 immediateHigh)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	SetRegisterPairValue(regPair, immediateLow, immediateHigh);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadHLToStackPointer()
+{
+	StackPointer = GetRegisterPairValue(RegisterPair::HL);
+	
+	ProgramCounter += 1;
+}
+
+void DMG::PushRegisterPairToStack(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	u16 value = GetRegisterPairValuePushPop(regPair);
+	u8 low = 0xFF & value;
+	u8 high = (0xFF00 & value) >> 8;
+	SetMemory(StackPointer - 1, high);
+	SetMemory(StackPointer - 2, low);
+	StackPointer = StackPointer - 2;
+
+	ProgramCounter += 1;
+}
+
+void DMG::PopFromStackToRegisterPair(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	u8 low = GetMemory(StackPointer);
+	u8 high = GetMemory(StackPointer + 1);
+	u16 value = (high << 8) | low;
+	SetRegisterPairValue(regPair, value);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadStackPointerPlusOffsetToHL(i8 offset)
+{
+	SetRegisterPairValue(RegisterPair::HL, Add(StackPointer, offset));
+
+	SetFlag(Flag::Z, 0);
+
+	ProgramCounter += 1;
+}
+
+void DMG::LoadStackPointerToImmediateAddress(u8 addressLow, u8 addressHigh)
+{
+	u16 address = (addressHigh << 8) | addressLow;
+	u8 low = StackPointer & 0xFF;
+	u8 high = (StackPointer & 0xFF00) >> 8;
+	SetMemory(address, low);
+	SetMemory(address + 1, high);
+
+	ProgramCounter += 1;
 }
 
 void DMG::OperationFromRegister(Operation operation, u8 instruction)
@@ -590,8 +924,8 @@ void DMG::OperationFromRegister(Operation operation, u8 instruction)
 
 	ProgramCounter++;
 
-	DisplayInstructionString(instruction & 0b11'111'000);
-	DisplayRegisters();
+//	DisplayInstructionString(instruction & 0b11'111'000);
+	//DisplayRegisters();
 }
 
 void DMG::OperationFromImmediate(Operation operation, u8 instruction, u8 immediate)
@@ -601,8 +935,8 @@ void DMG::OperationFromImmediate(Operation operation, u8 instruction, u8 immedia
 
 	ProgramCounter += 2;
 
-	DisplayInstructionString(instruction);
-	DisplayRegisters();
+//	DisplayInstructionString(instruction);
+	//DisplayRegisters();
 }
 
 void DMG::OperationFromHL(Operation operation, u8 instruction)
@@ -610,13 +944,14 @@ void DMG::OperationFromHL(Operation operation, u8 instruction)
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	u8 result = PerformOperation(operation, GetRegisterValue(Register::A), Memory[address]);
-	SetRegisterValue(Register::A, result);
+	u8 result = PerformOperation(operation, GetRegisterValue(Register::A), GetMemory(address));
+	if (operation != Operation::CP)
+		SetRegisterValue(Register::A, result);
 
 	ProgramCounter++;
 
-	DisplayInstructionString(instruction);
-	DisplayRegisters();
+//	DisplayInstructionString(instruction);
+	//DisplayRegisters();
 }
 
 u8 DMG::PerformOperation(Operation operation, u8 left, u8 right)
@@ -630,60 +965,149 @@ u8 DMG::PerformOperation(Operation operation, u8 left, u8 right)
 		case Operation::AND: return And(left, right);
 		case Operation::OR:  return Or(left, right);
 		case Operation::XOR: return Xor(left, right);
-		case Operation::CP:  return Compare(left, right);
+		case Operation::CP:  return Subtract(left, right);
+			/*SetFlag(Flag::Z, Compare(left, right));
+			return GetFlag(Flag::Z);*/
 	}
 }
 
-u8 DMG::Add(u8 left, u8 right)
+u8 DMG::Add(u8 left, u8 right, bool setCarryFlag)
 {
+	SetFlag(Flag::N, 0);
+
+	u8 halfAdd = (0x0F & left) + (0x0F & right);
+	bool halfCarry = (0b01'0000 & halfAdd) != 0;
+	SetFlag(Flag::H, halfCarry);
 	
+	u16 result = left + right;
+	if (setCarryFlag)
+	{
+		bool carry = (0b1'0000'0000 & result) != 0;
+		SetFlag(Flag::CY, carry);
+	}
+
+	SetFlag(Flag::Z, (u8)result == 0);
+
+	return (u8)result;
 }
 
 u8 DMG::AddWithCarry(u8 left, u8 right)
 {
-	
+	SetFlag(Flag::N, 0);
+
+	u8 halfAdd = (0x0F & left) + (0x0F & right) + GetFlag(Flag::CY);
+	bool halfCarry = (0b01'0000 & halfAdd) != 0;
+	SetFlag(Flag::H, halfCarry);
+
+	u16 result = left + right + GetFlag(Flag::CY);
+	bool carry = (0b1'0000'0000 & result) != 0;
+	SetFlag(Flag::CY, carry);
+
+	SetFlag(Flag::Z, (u8)result == 0);
+
+	return (u8)result;
 }
 
-u8 DMG::Subtract(u8 left, u8 right)
+u8 DMG::Subtract(u8 left, u8 right, bool setCarryFlag)
 {
+	SetFlag(Flag::N, 1);
 	
+	u8 halfSubtract = (0x0F & left) - (0x0f & right);
+	bool halfCarry = (0b01'0000 & halfSubtract) != 0;
+	SetFlag(Flag::H, halfCarry);
+
+	u16 result = left - right;
+	if (setCarryFlag)
+	{
+		bool carry = (0b1'0000'0000 & result) != 0;
+		SetFlag(Flag::CY, carry);
+	}
+
+	SetFlag(Flag::Z, (u8)result == 0);
+
+	return (u8)result;
 }
 
 u8 DMG::SubtractWithCarry(u8 left, u8 right)
 {
+	SetFlag(Flag::N, 1);
+
+	u8 halfSubtract = (0x0F & left) - (0x0f & right) - GetFlag(Flag::CY);
+	bool halfCarry = (0b01'0000 & halfSubtract) != 0;
+	SetFlag(Flag::H, halfCarry);
+
+	u16 result = left - right - GetFlag(Flag::CY);
+	bool carry = (0b1'0000'0000 & result) != 0;
+	SetFlag(Flag::CY, carry);
+
+	SetFlag(Flag::Z, (u8)result == 0);
 	
+	return (u8)result;
 }
 
 u8 DMG::And(u8 left, u8 right)
 {
+	SetFlag(Flag::CY, 0);
+	SetFlag(Flag::H, 1);
+	SetFlag(Flag::N, 0);
 	
+	auto result = left & right;
+	
+	if (result == 0)
+		SetFlag(Flag::Z, 1);
+	else
+		SetFlag(Flag::Z, 0);
+
+	return result;
 }
 
 u8 DMG::Or(u8 left, u8 right)
 {
+	SetFlag(Flag::CY, 0);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
 	
+	u8 result = left | right;
+
+	if (result == 0)
+		SetFlag(Flag::Z, 1);
+	else
+		SetFlag(Flag::Z, 0);
+
+	return result;
 }
 
 u8 DMG::Xor(u8 left, u8 right)
 {
+	SetFlag(Flag::CY, 0);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
 	
+	u8 result = left ^ right;
+
+	if (result == 0)
+		SetFlag(Flag::Z, 1);
+	else
+		SetFlag(Flag::Z, 0);
+
+	return result;
 }
 
 u8 DMG::Compare(u8 left, u8 right)
 {
+	// TODO: implement carry flags here (may not need to, not using this function)
+	u8 result = (left == right) ? 1 : 0;
 	
+	return result;
 }
 
 void DMG::IncrementRegister(u8 instruction)
 {
 	Register registerToLoad = (Register)((instruction & 0b00'111'000) >> 3);
-	u8 result = GetRegisterValue(registerToLoad) + 1;
+	u8 result = Add(GetRegisterValue(registerToLoad), 1, false);
 	SetRegisterValue(registerToLoad, result);
 
 	ProgramCounter++;
-
-	DisplayInstructionString(INC_R);
-	DisplayRegisters();
 }
 
 void DMG::IncrementHL()
@@ -691,24 +1115,19 @@ void DMG::IncrementHL()
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = Memory[address] + 1;
+	u8 memoryAtAddress = GetMemory(address);
+	SetMemory(address, Add(memoryAtAddress, 1, false));
 
 	ProgramCounter++;
-
-	DisplayInstructionString(INC_HL);
-	DisplayRegisters();
 }
 
 void DMG::DecrementRegister(u8 instruction)
 {
 	Register registerToLoad = (Register)((instruction & 0b00'111'000) >> 3);
-	u8 result = GetRegisterValue(registerToLoad) - 1;
+	u8 result = Subtract(GetRegisterValue(registerToLoad), 1, false);
 	SetRegisterValue(registerToLoad, result);
 
 	ProgramCounter++;
-
-	DisplayInstructionString(DEC_R);
-	DisplayRegisters();
 }
 
 void DMG::DecrementHL()
@@ -716,10 +1135,52 @@ void DMG::DecrementHL()
 	u8 addressLow = GetRegisterValue(Register::L);
 	u8 addressHigh = GetRegisterValue(Register::H);
 	u16 address = (addressHigh << 8) + addressLow;
-	Memory[address] = Memory[address] - 1;
+	u8 memoryAtAddress = GetMemory(address);
+	SetMemory(address, Subtract(memoryAtAddress, 1, false));
 
 	ProgramCounter++;
+}
 
-	DisplayInstructionString(DEC_HL);
-	DisplayRegisters();
+void DMG::JumpToImmediate(u8 addressLow, u8 addressHigh)
+{
+	ProgramCounter = (addressHigh << 8) | addressLow;
+}
+
+void DMG::JumpToImmediateIfTrue(u8 instruction, u8 addressLow, u8 addressHigh)
+{
+	Condition condition = (Condition)((instruction & 0b00'011'000) >> 3);
+	if (TestCondition(condition))
+	{
+		ProgramCounter = (addressHigh << 8) | addressLow;
+	}
+	else
+	{
+		ProgramCounter += 1;
+	}
+
+	std::string infoString = "cc=" + Utils::GetBinary((long)condition, false);
+	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+}
+
+void DMG::JumpToOffset(i8 offset)
+{
+	ProgramCounter += offset + 2;
+}
+
+void DMG::JumpToOffsetIfTrue(u8 instruction, i8 offset)
+{
+	Condition condition = (Condition)((instruction & 0b00'011'000) >> 3);
+	if (TestCondition(condition))
+	{
+		ProgramCounter += offset + 2;
+	}
+	else
+	{
+		ProgramCounter += 1;
+	}
+}
+
+void DMG::JumpToHL()
+{
+	ProgramCounter = GetRegisterPairValue(RegisterPair::HL);
 }
