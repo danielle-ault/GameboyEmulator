@@ -5,9 +5,8 @@
 #include <string>
 #include <map>
 
-typedef int8_t i8;
-typedef uint8_t u8;
-typedef uint16_t u16;
+#include "Display.h"
+#include "types.h"
 
 enum class Register
 {
@@ -127,12 +126,16 @@ struct MemoryOperationInfo
 class DMG
 {
 public:
+	//TODO: Move vars to private and test
 	// Constants for the console display
 	const int CONSOLE_INSTRUCTION_INFO_WIDTH = 20;
 	const int CONSOLE_INSTRUCTION_WIDTH = 30;
 	const int CONSOLE_INSTRUCTION_TOTAL_WIDTH = CONSOLE_INSTRUCTION_WIDTH + CONSOLE_INSTRUCTION_INFO_WIDTH;
 
 	const int MEMORY_OPERATION_WIDTH = 25;
+
+	// Other devices
+	Display Display;
 
 	//MemoryMap Memory;
 	u8 Memory[0xFFFF] = { 0 };
@@ -152,10 +155,16 @@ public:
 
 	DMG(std::vector<u8> ROM);
 
+	void RunCycle();
+	void RunCycles(int numCycles);
+
 	int GetTotalMemoryMapSize();
 	int SetMemory(u16 address, u8 value);
 	u8 GetMemory(u16 address);
 	void DisplayMemoryValue(u16 address);
+
+	u8 GetNextImmediate();
+	u16 GetNextImmediateAddress();
 
 	InstructionInfo& GetLastInstruction();
 	MemoryOperationInfo& GetLastMemoryOperation();
@@ -181,7 +190,9 @@ public:
 
 	void DisplayRegister(Register reg, std::string name, bool newLine = true);
 	void DisplayRegisters();
+
 	std::string GetRegisterName(u8 reg);
+	std::string GetRegisterPairName(RegisterPair regPair);
 
 	u8 GetMaskedInstruction(u8 instruction);
 
@@ -190,13 +201,14 @@ public:
 	void SetFlagRegister(u8 value);
 	u8 GetFlagRegister();
 
-	void ProcessNextInstruction();
+	void ProcessNextInstruction(bool updateDisplay = true);
 
 	void DisplayInstructionHistory(short consoleWidth, short consoleHeight);
 	void DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo);
 	void DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight);
 	void DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info);
-	void DisplayStateInfo(short consoleWidth, short consoleHeight);
+	void DisplayStateInfo();
+	void DisplayValueGeneric(std::string name, u16 value, short x, short y);
 	void DisplayRegister(Register reg, short x, short y);
 	void DisplayFlags(int x, int y);
 	void DisplayAllRegisters(short x, short y);
@@ -224,7 +236,7 @@ public:
 	void LoadRegisterToRegister(u8 instruction);
 	
 	// LD r,n
-	void LoadImmediateToRegister(u8 instruction, u8 immediateValue);
+	void LoadImmediateToRegister(u8 instruction);
 	
 	// LD r,(HL) 
 	void LoadHLToRegister(u8 instruction);
@@ -233,7 +245,7 @@ public:
 	void LoadRegisterToHL(u8 instruction);
 	
 	// LD (HL),n
-	void LoadImmediateToHL(u8 immediateValue);
+	void LoadImmediateToHL();
 	
 	// LD A,(BC)
 	void LoadBCToA(u8 instruction);
@@ -248,16 +260,16 @@ public:
 	void LoadAToCLow();
 	
 	// LD A,(n)
-	void LoadImmediateLowToA(u8 immediateValue);
+	void LoadImmediateLowToA();
 	
 	// LD (n),A
-	void LoadAToImmediateLow(u8 immediateValue);
+	void LoadAToImmediateLow();
 	
 	// LD A,(nn)
-	void LoadImmediateAddressToA(u8 immediateLow, u8 immediateHigh);
+	void LoadImmediateAddressToA();
 	
 	// LD (nn),A
-	void LoadAToImmediateAddress(u8 immediateLow, u8 immediateHigh);
+	void LoadAToImmediateAddress();
 
 	// LD A,(HLI)
 	void LoadHLIToA();
@@ -279,7 +291,7 @@ public:
 	//
 	
 	// LD dd,nn
-	void LoadImmediateToRegisterPair(u8 instruction, u8 immediateLow, u8 immediateHigh);
+	void LoadImmediateToRegisterPair(u8 instruction);
 
 	// LD SP,HL
 	void LoadHLToStackPointer();
@@ -291,17 +303,17 @@ public:
 	void PopFromStackToRegisterPair(u8 instruction);
 
 	// LDHL SP,e
-	void LoadStackPointerPlusOffsetToHL(i8 offset);
+	void LoadStackPointerPlusOffsetToHL();
 
 	// LD (nn),SP
-	void LoadStackPointerToImmediateAddress(u8 addressLow, u8 addressHigh);
+	void LoadStackPointerToImmediateAddress();
 
 	//
 	// 8-bit arithmetic and logical operation instructions
 	//
 
 	void OperationFromRegister(Operation operation, u8 instruction);
-	void OperationFromImmediate(Operation operation, u8 instruction, u8 immediate);
+	void OperationFromImmediate(Operation operation, u8 instruction);
 	void OperationFromHL(Operation operation, u8 instruction);
 
 	u8 PerformOperation(Operation operation, u8 left, u8 right);
@@ -345,16 +357,16 @@ public:
 	//
 
 	// JP nn
-	void JumpToImmediate(u8 addressLow, u8 addressHigh);
+	void JumpToImmediate();
 
 	// JP cc,nn
-	void JumpToImmediateIfTrue(u8 instruction, u8 addressLow, u8 addressHigh);
+	void JumpToImmediateIfTrue(u8 instruction);
 
 	// JR e
-	void JumpToOffset(i8 offset);
+	void JumpToOffset();
 
 	// JR cc,e
-	void JumpToOffsetIfTrue(u8 instruction, i8 offset);
+	void JumpToOffsetIfTrue(u8 instruction);
 
 	// JP (HL)
 	void JumpToHL();
@@ -397,6 +409,9 @@ public:
 	static const u16 REGISTER_OBP1 = 0XFF49;
 	static const u16 REGISTER_WY   = 0XFF4A;
 	static const u16 REGISTER_WX   = 0XFF4B;
+
+	// Sound Registers
+	// TODO: write constants
 
 
 	// Instruction bit masks

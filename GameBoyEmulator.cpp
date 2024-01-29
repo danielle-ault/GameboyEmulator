@@ -12,11 +12,13 @@
 #include "DMG.h"
 #include "Utils.h"
 
-std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world.gb";//"D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb.test";
+//std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world.gb";//"D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb.test";
+std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/test instructions/test_instructions.gb";
 
 void TestFlagInputOutput(DMG cpu);
 void ConsoleCursorToXY(short x, short y);
 void clear_screen(char fill = ' ');
+void ProcessNumInstructions(DMG *cpu, int numInstructions);
 
 int main()
 {
@@ -39,37 +41,25 @@ int main()
 
 	while (true)
 	{
-		//std::cout << emptyScreenWidth;
-		//Utils::gotoxy(0, 0);
-		/*std::cout << std::hex << programCounter << ": ";
-		std::cout << Utils::GetBinary(ROM[programCounter]) << " ";
-		std::cout << std::hex << (int)ROM[programCounter] << " ";*/
+		char input = (char)_getch();
 
-		/*std::string instructionString;
-		if (cpu.INSTRUCTION_STRINGS.find(ROM[programCounter]) != cpu.INSTRUCTION_STRINGS.end())
-			instructionString = cpu.INSTRUCTION_STRINGS.at(ROM[programCounter]);*/
-
-		//std::cout << instructionString << "\n";
-
-		Utils::gotoxy(0, 0);
-		
-		//cpu.DisplayInstructionInfo();
-		cpu.ProcessNextInstruction();
-		cpu.DisplayStateInfo(columns, rows);
-
-		
-		/*Utils::gotoxy(0, 0);
-		std::cout << std::hex << programCounter << ": ";
-		std::cout << Utils::GetBinary(ROM[programCounter]) << " ";
-		std::cout << std::hex << (int)ROM[programCounter] << " ";*/
-		
-		//cpu.DisplayRegisters();
-
-		//std::cout << "\n";
-
-		if (_getch() == 13) break; // enter key
+		switch (input)
+		{
+		case 13: goto exit_loop; // enter key
+		case 32: ProcessNumInstructions(&cpu, 1); break; // spacebar
+		case 'S':
+		case 's': ProcessNumInstructions(&cpu, 10); break; 
+		}
 	}
+exit_loop:;
+}
 
+void ProcessNumInstructions(DMG *cpu, int numInstructions)
+{
+	for (int i = 0; i < numInstructions; i++)
+		cpu->ProcessNextInstruction();
+
+	cpu->DisplayStateInfo();
 }
 
 //std::vector<long> GenerateTestInstructions()
