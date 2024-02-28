@@ -202,6 +202,7 @@ public:
 	u8 GetFlagRegister();
 
 	void ProcessNextInstruction(bool updateDisplay = true);
+	void RotateShiftInstruction();
 
 	void DisplayInstructionHistory(short consoleWidth, short consoleHeight);
 	void DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo);
@@ -318,7 +319,7 @@ public:
 
 	u8 PerformOperation(Operation operation, u8 left, u8 right);
 
-	u8 Add(u8 left, u8 right, bool setCarryFlag = true);
+	u8 Add(u8 left, u8 right, bool setCarryFlag = true, bool setZeroFlag = true);
 	u8 AddWithCarry(u8 left, u8 right);
 	u8 Subtract(u8 left, u8 right, bool setCarryFlag = true);
 	u8 SubtractWithCarry(u8 left, u8 right);
@@ -344,13 +345,100 @@ public:
 	// 16-bit arithmetic operation instructions
 	//
 
+	u16 Add16(u16 left, u16 right, bool setZeroFlag = true);
+	u16 Add16(u16 left, i8 right, bool setZeroFlag = true);
+
+	// ADD HL,ss
+	void AddRegisterPairToHL(u8 instruction);
+
+	// ADD AP,e
+	void AddStackPointerAndOffset();
+
+	// INC ss
+	void IncrementRegisterPair(u8 instruction);
+
+	// DEC ss
+	void DecrementRegisterPair(u8 instruction);
+
+
 	//
 	// Rotate shift instructions
 	//
 
+	enum class RotateOperation
+	{
+		RotateLeft,
+		RotateLeftCarry,
+		RotateRight,
+		RotateRightCarry,
+		ShiftLeftZero,
+		ShiftRight,
+		ShiftRightZero,
+		Swap
+	};
+
+	// RLCA
+	// RLA
+	// RRCA
+	// RRA
+	void RotateShiftAccumulator(RotateOperation op);
+	
+	// RLC r
+	// RL r
+	// RRC r
+	// RR r
+	// SLA r
+	// SRA r
+	// SRL r
+	// SWAP r
+	void RotateShiftRegister(RotateOperation op, u8 instruction);
+	
+	// RLC (HL)
+	// RL (HL)
+	// RRC (HL)
+	// RR (HL)
+	// SLA (HL)
+	// SRA (HL)
+	// SRL (HL)
+	// SWAP (HL)
+	void RotateShiftHL(RotateOperation op);
+
+	u8 PerformRotateShiftOperation(RotateOperation op, u8 byte);
+
+	u8 RotateLeft(u8 byte);
+	u8 RotateLeftCarry(u8 byte);
+	u8 RotateRight(u8 byte);
+	u8 RotateRightCarry(u8 byte);
+	u8 ShiftLeftZero(u8 byte);
+	u8 ShiftRight(u8 byte);
+	u8 ShiftRightZero(u8 byte);
+	u8 Swap(u8 byte);
+
+
+
+
 	//
 	// Bit operations
 	//
+
+	// BIT b,r
+
+
+	// BIT b,(HL)
+
+
+	// SET b,r
+
+
+	// SET b,(HL)
+
+
+	// RES b,r
+
+
+	// RES b,(HL)
+
+
 
 	//
 	// Jump instructions
@@ -371,15 +459,61 @@ public:
 	// JP (HL)
 	void JumpToHL();
 
+
 	//
 	// Call/return instructions
 	//
+
+	// CALL nn
+	void CallImmediate();
+
+	// CALL cc,nn
+	void CallImmediateIfCondition(u8 instruction);
+
+	// RET
+	void ReturnFromSubroutine();
+
+	// RETI
+	void ReturnFromInterrupt();
+
+	// RET cc
+	void ReturnIfCondition(u8 instruction);
+
+	// RST t
+	void RestartCallToAddress(u8 instruction);
+
 
 	//
 	// Gen-purpose arithmetic/CPU control instructions
 	//
 
+	// DAA
+	void DecimalAdjustAccumulator();
 
+	// CPL
+	void ComplementAccumulator();
+
+	// NOP
+	
+
+	// CCF
+	void FlipCarryFlag();
+
+	// SCF
+	void SetCarryFlag();
+
+	// DI
+	void DisableInterrupts();
+
+	// EI
+	void EnableInterrupts();
+
+	// HALT
+	void HaltSystemClock();
+
+	// STOP
+	void StopSystemAndMainClocks();
+	
 
 
 
@@ -748,7 +882,4 @@ public:
 		};
 	}
 };
-
-
-
 

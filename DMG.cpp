@@ -456,11 +456,29 @@ void DMG::ProcessNextInstruction(bool updateDisplay)
 		case DEC_R:  DecrementRegister(instruction); break;
 		case DEC_HL: DecrementHL(); break;
 
+		case ADD_HL_SS: AddRegisterPairToHL(instruction); break;
+		case ADD_SP_E:  AddStackPointerAndOffset(); break;
+		case INC_SS:    IncrementRegisterPair(instruction); break;
+		case DEC_SS:    DecrementRegisterPair(instruction); break;
+
+		case RLCA: RotateShiftAccumulator(RotateOperation::RotateLeft); break;
+		case RLA:  RotateShiftAccumulator(RotateOperation::RotateLeftCarry); break;
+		case RRCA: RotateShiftAccumulator(RotateOperation::RotateRight); break;
+		case RRA:  RotateShiftAccumulator(RotateOperation::RotateRightCarry); break;
+		case BIT_OP_1ST_BYTE: RotateShiftInstruction(); break;
+
 		case JP_NN:    JumpToImmediate(); break;
 		case JP_CC_NN: JumpToImmediateIfTrue(instruction); break;
 		case JR_E:     JumpToOffset(); break; // TODO: verify that this converts to negative correctly
 		case JR_CC_E:  JumpToOffsetIfTrue(instruction); break;
 		case JP_HL:    JumpToHL(); break;
+
+		case CALL_NN:    CallImmediate(); break;
+		case CALL_CC_NN: CallImmediateIfCondition(instruction); break;
+		case RET:        ReturnFromSubroutine(); break;
+		case RETI:       ReturnFromInterrupt(); break;
+		case RET_CC:     ReturnIfCondition(instruction); break;
+		case RST_T:      RestartCallToAddress(instruction); break;
 
 		default:
 			ProgramCounter++;
@@ -469,6 +487,32 @@ void DMG::ProcessNextInstruction(bool updateDisplay)
 	}
 
 	//DisplayInstructionInfo();
+}
+
+void DMG::RotateShiftInstruction()
+{
+	u8 instruction = GetNextImmediate();
+	
+	switch (instruction)
+	{
+		case RLC_R:  RotateShiftRegister(RotateOperation::RotateLeft, instruction); break;
+		case RL_R:   RotateShiftRegister(RotateOperation::RotateLeftCarry, instruction); break;
+		case RRC_R:  RotateShiftRegister(RotateOperation::RotateRight, instruction); break;
+		case RR_R:   RotateShiftRegister(RotateOperation::RotateRightCarry, instruction); break;
+		case SLA_R:  RotateShiftRegister(RotateOperation::ShiftLeftZero, instruction); break;
+		case SRA_R:  RotateShiftRegister(RotateOperation::ShiftRight, instruction); break;
+		case SRL_R:  RotateShiftRegister(RotateOperation::ShiftRightZero, instruction); break;
+		case SWAP_R: RotateShiftRegister(RotateOperation::Swap, instruction); break;
+
+		case RLC_HL:  RotateShiftHL(RotateOperation::RotateLeft); break;
+		case RL_HL:   RotateShiftHL(RotateOperation::RotateLeftCarry); break;
+		case RRC_HL:  RotateShiftHL(RotateOperation::RotateRight); break;
+		case RR_HL:   RotateShiftHL(RotateOperation::RotateRightCarry); break;
+		case SLA_HL:  RotateShiftHL(RotateOperation::ShiftLeftZero); break;
+		case SRA_HL:  RotateShiftHL(RotateOperation::ShiftRight); break;
+		case SRL_HL:  RotateShiftHL(RotateOperation::ShiftRightZero); break;
+		case SWAP_HL: RotateShiftHL(RotateOperation::Swap); break;
+	}
 }
 
 void DMG::DisplayInstructionHistory(short consoleWidth, short consoleHeight)
@@ -898,6 +942,7 @@ void DMG::LoadImmediateToRegisterPair(u8 instruction)
 void DMG::LoadHLToStackPointer()
 {
 	StackPointer = GetRegisterPairValue(RegisterPair::HL);
+	RunCycle();
 	
 	ProgramCounter += 1;
 
@@ -909,6 +954,7 @@ void DMG::PushRegisterPairToStack(u8 instruction)
 {
 	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
 	u16 value = GetRegisterPairValuePushPop(regPair);
+	RunCycle();
 	u8 low = 0xFF & value;
 	u8 high = (0xFF00 & value) >> 8;
 	SetMemory(StackPointer - 1, high);
@@ -1018,7 +1064,7 @@ u8 DMG::PerformOperation(Operation operation, u8 left, u8 right)
 	}
 }
 
-u8 DMG::Add(u8 left, u8 right, bool setCarryFlag)
+u8 DMG::Add(u8 left, u8 right, bool setCarryFlag, bool setZeroFlag)
 {
 	SetFlag(Flag::N, 0);
 
@@ -1033,7 +1079,8 @@ u8 DMG::Add(u8 left, u8 right, bool setCarryFlag)
 		SetFlag(Flag::CY, carry);
 	}
 
-	SetFlag(Flag::Z, (u8)result == 0);
+	if (setZeroFlag)
+		SetFlag(Flag::Z, (u8)result == 0);
 
 	return (u8)result;
 }
@@ -1159,11 +1206,9 @@ void DMG::IncrementRegister(u8 instruction)
 
 void DMG::IncrementHL()
 {
-	u8 addressLow = GetRegisterValue(Register::L);
-	u8 addressHigh = GetRegisterValue(Register::H);
-	u16 address = (addressHigh << 8) + addressLow;
-	u8 memoryAtAddress = GetMemory(address);
-	SetMemory(address, Add(memoryAtAddress, 1, false));
+	u16 address = GetRegisterPairValue(RegisterPair::HL);
+	u8 valueAtAddress = GetMemory(address);
+	SetMemory(address, Add(valueAtAddress, 1, false));
 
 	ProgramCounter++;
 }
@@ -1179,13 +1224,214 @@ void DMG::DecrementRegister(u8 instruction)
 
 void DMG::DecrementHL()
 {
-	u8 addressLow = GetRegisterValue(Register::L);
-	u8 addressHigh = GetRegisterValue(Register::H);
-	u16 address = (addressHigh << 8) + addressLow;
-	u8 memoryAtAddress = GetMemory(address);
-	SetMemory(address, Subtract(memoryAtAddress, 1, false));
+	u16 address = GetRegisterPairValue(RegisterPair::HL);
+	u8 valueAtAddress = GetMemory(address);
+	SetMemory(address, Subtract(valueAtAddress, 1, false));
 
 	ProgramCounter++;
+}
+
+u16 DMG::Add16(u16 left, u16 right, bool setZeroFlag)
+{
+	SetFlag(Flag::N, 0);
+
+	u8 halfAdd = (0x0FFF & left) + (0x0FFF & right);
+	bool halfCarry = (0b01'0000'0000'0000 & halfAdd) != 0;
+	SetFlag(Flag::H, halfCarry);
+
+	u32 result = left + right;
+	bool carry = (0x1'00'00 & result) != 0;
+	SetFlag(Flag::CY, carry);
+
+	if (setZeroFlag)
+		SetFlag(Flag::Z, (u16)result == 0);
+
+	return (u16)result;
+}
+
+u16 DMG::Add16(u16 left, i8 right, bool setZeroFlag)
+{
+	SetFlag(Flag::N, 0);
+
+	u8 halfAdd = (0x0FFF & left) + right;
+	bool halfCarry = (0b01'0000'0000'0000 & halfAdd) != 0;
+	SetFlag(Flag::H, halfCarry);
+
+	u32 result = left + right;
+	bool carry = (0x1'00'00 & result) != 0;
+	SetFlag(Flag::CY, carry);
+
+	if (setZeroFlag)
+		SetFlag(Flag::Z, (u16)result == 0);
+
+	return (u16)result;
+}
+
+void DMG::AddRegisterPairToHL(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	RunCycle(); // TODO: this timing isn't documented in docs I have
+	u16 result = Add16(HL, GetRegisterPairValue(regPair), false);
+	SetRegisterPairValue(RegisterPair::HL, result);
+
+	ProgramCounter++;
+}
+
+void DMG::AddStackPointerAndOffset()
+{
+	i8 offset = GetNextImmediate();
+	RunCycles(2); // TODO: timing isnt documented in docs I have
+	StackPointer = Add16(StackPointer, offset);
+	SetFlag(Flag::Z, 0);
+
+	ProgramCounter++;
+}
+
+void DMG::IncrementRegisterPair(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	RunCycle(); // TODO: this timing isn't documented in docs I have
+	SetRegisterPairValue(regPair, GetRegisterPairValue(regPair) + 1);
+
+	ProgramCounter++;
+}
+
+void DMG::DecrementRegisterPair(u8 instruction)
+{
+	RegisterPair regPair = (RegisterPair)((instruction & 0b00'110'000) >> 4);
+	RunCycle(); // TODO: this timing isn't documented in docs I have
+	SetRegisterPairValue(regPair, GetRegisterPairValue(regPair) - 1);
+
+	ProgramCounter++;
+}
+
+void DMG::RotateShiftAccumulator(RotateOperation op)
+{
+	u8 result = PerformRotateShiftOperation(op, Registers.A);
+	SetRegisterValue(Register::A, result);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
+	SetFlag(Flag::Z, 0);
+
+	ProgramCounter++;
+}
+
+void DMG::RotateShiftRegister(RotateOperation op, u8 instruction)
+{
+	Register reg = (Register)(instruction & 0b00'000'111);
+	u8 result = PerformRotateShiftOperation(op, GetRegisterValue(reg));
+	RunCycle();
+	SetRegisterValue(reg, result);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
+	SetFlag(Flag::Z, result == 0);
+
+	ProgramCounter++;
+}
+
+void DMG::RotateShiftHL(RotateOperation op)
+{
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	u8 result = PerformRotateShiftOperation(op, GetMemory(HL));
+	RunCycle();
+	SetMemory(HL, result);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
+	SetFlag(Flag::Z, result == 0);
+
+	ProgramCounter++;
+}
+
+u8 DMG::PerformRotateShiftOperation(RotateOperation op, u8 byte)
+{
+	switch (op)
+	{
+		case RotateOperation::RotateLeft:       return RotateLeft(byte);
+		case RotateOperation::RotateLeftCarry:  return RotateLeftCarry(byte);
+		case RotateOperation::RotateRight:      return RotateRight(byte);
+		case RotateOperation::RotateRightCarry: return RotateRightCarry(byte);
+		case RotateOperation::ShiftLeftZero:    return ShiftLeftZero(byte);
+		case RotateOperation::ShiftRight:       return ShiftRight(byte);
+		case RotateOperation::ShiftRightZero:   return ShiftRightZero(byte);
+		case RotateOperation::Swap:             return Swap(byte);
+	}
+}
+
+u8 DMG::RotateLeft(u8 byte)
+{
+	bool bit7 = (0b1000'0000 & byte) >> 7;
+	SetFlag(Flag::CY, bit7);
+	u8 result = (byte << 1) | bit7;
+
+	return result;
+}
+
+u8 DMG::RotateLeftCarry(u8 byte)
+{
+	bool bit7 = (0b1000'0000 & byte) >> 7;
+	bool carry = GetFlag(Flag::CY);
+	SetFlag(Flag::CY, bit7);
+	u8 result = (byte << 1) | carry;
+
+	return result;
+}
+
+u8 DMG::RotateRight(u8 byte)
+{
+	bool bit0 = 0b1 & byte;
+	SetFlag(Flag::CY, bit0);
+	u8 result = (byte >> 1) | (bit0 << 7);
+
+	return result;
+}
+
+u8 DMG::RotateRightCarry(u8 byte)
+{
+	bool bit0 = 0b1 & byte;
+	bool carry = GetFlag(Flag::CY);
+	SetFlag(Flag::CY, bit0);
+	u8 result = (byte >> 1) | (carry << 7);
+
+	return result;
+}
+
+u8 DMG::ShiftLeftZero(u8 byte)
+{
+	bool bit7 = (0b1000'0000 & byte) >> 7;
+	SetFlag(Flag::CY, bit7);
+	u8 result = (byte << 1) & (0b1111'1110);
+
+	return result;
+}
+
+u8 DMG::ShiftRight(u8 byte)
+{
+	bool bit0 = 0b1 & byte;
+	SetFlag(Flag::CY, bit0);
+	u8 result = (0b1000'0000 & byte) | (byte >> 1);
+
+	return result;
+}
+
+u8 DMG::ShiftRightZero(u8 byte)
+{
+	bool bit0 = 0b1 & byte;
+	SetFlag(Flag::CY, bit0);
+	u8 result = (byte >> 1) & 0b0111'1111;
+
+	return result;
+}
+
+u8 DMG::Swap(u8 byte)
+{
+	u8 high = byte & 0xF0;
+	u8 low = byte & 0x0F;
+	u8 result = (high >> 4) | (low << 4);
+
+	SetFlag(Flag::CY, 0);
+
+	return result;
 }
 
 void DMG::JumpToImmediate()
@@ -1240,4 +1486,149 @@ void DMG::JumpToOffsetIfTrue(u8 instruction)
 void DMG::JumpToHL()
 {
 	ProgramCounter = GetRegisterPairValue(RegisterPair::HL);
+}
+
+void DMG::CallImmediate()
+{
+	SetMemory(StackPointer - 1, (ProgramCounter & 0xFF00) >> 8);
+	SetMemory(StackPointer - 2, ProgramCounter & 0x00FF);
+	ProgramCounter = GetNextImmediateAddress();
+	RunCycle(); // timing not documented, but it seems that setting StackPointer takes a cycle?
+	StackPointer = StackPointer - 2;
+}
+
+void DMG::CallImmediateIfCondition(u8 instruction)
+{
+	Condition condition = (Condition)((instruction & 0b00'011'000) >> 3);
+
+	if (TestCondition(condition))
+		CallImmediate();
+	else
+		GetNextImmediateAddress();
+}
+
+void DMG::ReturnFromSubroutine()
+{
+	u8 low = GetMemory(StackPointer);
+	u8 high = GetMemory(StackPointer + 1);
+	ProgramCounter = (high << 8) | low;
+	RunCycle();
+	StackPointer = StackPointer + 2;
+}
+
+void DMG::ReturnFromInterrupt()
+{
+	u8 low = GetMemory(StackPointer);
+	u8 high = GetMemory(StackPointer + 1);
+	ProgramCounter = (high << 8) | low;
+	RunCycle();
+	StackPointer = StackPointer + 2;
+}
+
+void DMG::ReturnIfCondition(u8 instruction)
+{
+	Condition condition = (Condition)((instruction & 0b00'011'000) >> 3);
+
+	if (TestCondition(condition))
+		ReturnFromSubroutine();
+	else
+	{
+		RunCycle();
+		ProgramCounter++;
+	}
+}
+
+void DMG::RestartCallToAddress(u8 instruction)
+{
+	u8 address = ((0b00'111'000 & instruction) >> 3) * 8;
+
+	SetMemory(StackPointer - 1, (ProgramCounter & 0xFF00) >> 8);
+	SetMemory(StackPointer - 2, ProgramCounter & 0x00FF);
+	RunCycle();
+	StackPointer = StackPointer - 2;
+	
+	ProgramCounter = 0x00FF & address;
+}
+
+// apparently documentation for this one is incomplete, and I did 
+// run into some code for it here: https://forums.nesdev.org/viewtopic.php?p=196282&sid=2ac4ba1ab86155b864f63750791ff59a#p196282
+void DMG::DecimalAdjustAccumulator()
+{
+	if (!GetFlag(Flag::N)) // after addition
+	{
+		if (GetFlag(Flag::CY) || Registers.A > 0x99)
+		{
+			Registers.A += 0x60;
+			SetFlag(Flag::CY, 1);
+		}
+		if (GetFlag(Flag::H) || (Registers.A & 0x0F) > 0x09)
+		{
+			Registers.A += 0x6;
+		}
+	}
+	else // after subtraction
+	{
+		if (GetFlag(Flag::CY)) Registers.A -= 0x60;
+		if (GetFlag(Flag::H)) Registers.A -= 0x6;
+	}
+
+	SetFlag(Flag::Z, (Registers.A == 0));
+	SetFlag(Flag::H, 0);
+
+	ProgramCounter++;
+}
+
+void DMG::ComplementAccumulator()
+{
+	SetRegisterValue(Register::A, ~Registers.A);
+	SetFlag(Flag::H, 1);
+	SetFlag(Flag::N, 1);
+
+	ProgramCounter++;
+}
+
+void DMG::FlipCarryFlag()
+{
+	SetFlag(Flag::CY, !GetFlag(Flag::CY));
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
+
+	ProgramCounter++;
+}
+
+void DMG::SetCarryFlag()
+{
+	SetFlag(Flag::CY, 1);
+	SetFlag(Flag::H, 0);
+	SetFlag(Flag::N, 0);
+
+	ProgramCounter++;
+}
+
+void DMG::DisableInterrupts()
+{
+	// TODO: implement?
+
+	ProgramCounter++;
+}
+
+void DMG::EnableInterrupts()
+{
+	// TODO: implement?
+
+	ProgramCounter++;
+}
+
+void DMG::HaltSystemClock()
+{
+
+
+	ProgramCounter++;
+}
+
+void DMG::StopSystemAndMainClocks()
+{
+
+
+	ProgramCounter++;
 }
