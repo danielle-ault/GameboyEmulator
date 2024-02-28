@@ -422,22 +422,22 @@ public:
 	//
 
 	// BIT b,r
-
+	void GetBitFromRegister(u8 instruction);
 
 	// BIT b,(HL)
-
+	void GetBitFromHL(u8 instruction);
 
 	// SET b,r
-
+	void SetBitInRegister(u8 instruction);
 
 	// SET b,(HL)
-
+	void SetBitInHL(u8 instruction);
 
 	// RES b,r
-
+	void ResetBitInRegister(u8 instruction);
 
 	// RES b,(HL)
-
+	void ResetBitInHL(u8 instruction);
 
 
 	//

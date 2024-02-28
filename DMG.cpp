@@ -83,7 +83,6 @@ void DMG::AddMemoryOperation(u16 address, u8 value, char readWrite)
 	MemoryOperationHistory.push_back(info);
 }
 
-// TODO: lol why am I using this instead of accessing Registers.X directly?
 u8 DMG::GetRegisterValue(Register reg)
 {
 	switch (reg)
@@ -512,6 +511,13 @@ void DMG::RotateShiftInstruction()
 		case SRA_HL:  RotateShiftHL(RotateOperation::ShiftRight); break;
 		case SRL_HL:  RotateShiftHL(RotateOperation::ShiftRightZero); break;
 		case SWAP_HL: RotateShiftHL(RotateOperation::Swap); break;
+
+		case BIT_B_R:  GetBitFromRegister(instruction); break;
+		case BIT_B_HL: GetBitFromHL(instruction); break;
+		case SET_B_R:  SetBitInRegister(instruction); break;
+		case SET_B_HL: SetBitInHL(instruction); break;
+		case RES_B_R:  ResetBitInRegister(instruction); break;
+		case RES_B_HL: ResetBitInHL(instruction); break;
 	}
 }
 
@@ -1434,6 +1440,80 @@ u8 DMG::Swap(u8 byte)
 	return result;
 }
 
+void DMG::GetBitFromRegister(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	Register reg = (Register)(0b00'000'111 & instruction);
+	u8 regValue = GetRegisterValue(reg);
+	u8 bitValue = ((0b1 << bit) & regValue) >> bit;
+
+	RunCycle();
+
+	SetFlag(Flag::H, 1);
+	SetFlag(Flag::N, 0);
+	SetFlag(Flag::Z, bitValue);
+}
+
+void DMG::GetBitFromHL(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	u8 memoryValue = GetMemory(HL);
+	u8 bitValue = ((0b1 << bit) & memoryValue) >> bit;
+
+	RunCycle();
+
+	SetFlag(Flag::H, 1);
+	SetFlag(Flag::N, 0);
+	SetFlag(Flag::Z, bitValue);
+}
+
+void DMG::SetBitInRegister(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	Register reg = (Register)(0b00'000'111 & instruction);
+	u8 regValue = GetRegisterValue(reg);
+	u8 newRegValue = (0b1 << bit) | regValue;
+	SetRegisterValue(reg, newRegValue);
+
+	RunCycle();
+}
+
+void DMG::SetBitInHL(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	Register reg = (Register)(0b00'000'111 & instruction);
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	u8 memoryValue = GetMemory(HL);
+	u8 newMemoryValue = (0b1 << bit) | memoryValue;
+	SetRegisterValue(reg, newMemoryValue);
+
+	RunCycle();
+}
+
+void DMG::ResetBitInRegister(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	Register reg = (Register)(0b00'000'111 & instruction);
+	u8 regValue = GetRegisterValue(reg);
+	u8 newRegValue = ~(0b1 << bit) & regValue;
+	SetRegisterValue(reg, newRegValue);
+
+	RunCycle();
+}
+
+void DMG::ResetBitInHL(u8 instruction)
+{
+	u8 bit = (0b00'111'000 & instruction) >> 3;
+	Register reg = (Register)(0b00'000'111 & instruction);
+	u16 HL = GetRegisterPairValue(RegisterPair::HL);
+	u8 memoryValue = GetMemory(HL);
+	u8 newMemoryValue = ~(0b1 << bit) & memoryValue;
+	SetRegisterValue(reg, newMemoryValue);
+
+	RunCycle();
+}
+
 void DMG::JumpToImmediate()
 {
 	u16 address = GetNextImmediateAddress();
@@ -1621,14 +1701,14 @@ void DMG::EnableInterrupts()
 
 void DMG::HaltSystemClock()
 {
-
+	// TODO: implement
 
 	ProgramCounter++;
 }
 
 void DMG::StopSystemAndMainClocks()
 {
-
+	// TODO: implement
 
 	ProgramCounter++;
 }
