@@ -9,6 +9,10 @@
 #include <conio.h>
 #include <Windows.h>
 
+//#include <glad/glad.h>
+//#include <GLFW/glfw3.h>
+
+#include "Window.h"
 #include "DMG.h"
 #include "Utils.h"
 
@@ -20,13 +24,27 @@ void ConsoleCursorToXY(short x, short y);
 void clear_screen(char fill = ' ');
 void ProcessNumInstructions(DMG *cpu, int numInstructions);
 
+void ResizeCallback(GLFWwindow* window, int width, int height);
+void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+int Scale = 2;
+
+DMG* CPU;
+
 int main()
 {
+	Window window(Display::SCREEN_WIDTH * Scale,
+		          Display::SCREEN_HEIGHT * Scale,
+		          "Gameboy Emulator",
+		          ResizeCallback,
+		          KeypressCallback);
+
 	std::ifstream input(filepathToROM, std::ios::binary);
 	std::vector<uint8_t> ROM(std::istreambuf_iterator<char>(input), {});
 
-	DMG cpu = DMG(ROM);
-	cpu.ProgramCounter = 0x100;
+	DMG cpu_temp = DMG(ROM);
+	CPU = &cpu_temp;
+	CPU->ProgramCounter = 0x100;
 	//int programCounter = 0x100;
 
 	//TestFlagInputOutput(cpu);
@@ -38,37 +56,45 @@ int main()
 	columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 	rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
-
-	while (true)
+	CPU->Display.InitGraphics(Scale);
+	
+	while (!window.ShouldClose())
 	{
-		char input = (char)_getch();
+		CPU->Display.DrawGraphics();
+		window.SwapBuffersAndPollEvents();
 
-		switch (input)
-		{
-		case 13: goto exit_loop; // enter key
-		case 32: ProcessNumInstructions(&cpu, 1); break; // spacebar
-		case 'S':
-		case 's': ProcessNumInstructions(&cpu, 10); break; 
-		}
+		//char input = (char)_getch();
+
+		//switch (input)
+		//{
+		//case 13: goto exit_loop; // enter key
+		//case 32: ProcessNumInstructions(CPU, 1); break; // spacebar
+		//case 'S':
+		//case 's': ProcessNumInstructions(CPU, 10); break; 
+		//}
 	}
-exit_loop:;
+//exit_loop:;
+
+	CPU->Display.Cleanup();
+	window.Close();
 }
 
-void ProcessNumInstructions(DMG *cpu, int numInstructions)
+void TestFlagInputOutput(DMG cpu)
 {
-	for (int i = 0; i < numInstructions; i++)
-		cpu->ProcessNextInstruction();
+	bool flagZ = true;
+	bool flagN = false;
+	bool flagH = true;
+	bool flagCY = false;
 
-	cpu->DisplayStateInfo();
+	std::cout << "ZNHCY \n" << flagZ << flagN << flagH << flagCY << "\n";
+
+	cpu.SetFlag(Flag::Z, flagZ);
+	cpu.SetFlag(Flag::N, flagN);
+	cpu.SetFlag(Flag::H, flagH);
+	cpu.SetFlag(Flag::CY, flagCY);
+
+	std::cout << cpu.GetFlag(Flag::Z) << cpu.GetFlag(Flag::N) << cpu.GetFlag(Flag::H) << cpu.GetFlag(Flag::CY) << "\n\n";
 }
-
-//std::vector<long> GenerateTestInstructions()
-//{
-//	std::vector<long> instructions;
-//	instructions.push_back(DMG::LD_r_n(Register::H, 0xAB));
-//	instructions.push_back(DMG::LD_HL_n(0x50));
-//	return instructions;
-//}
 
 void ConsoleCursorToXY(short x, short y)
 {
@@ -90,19 +116,40 @@ void clear_screen(char fill)
 	SetConsoleCursorPosition(console, tl);
 }
 
-void TestFlagInputOutput(DMG cpu)
+void ProcessNumInstructions(DMG *cpu, int numInstructions)
 {
-	bool flagZ = true;
-	bool flagN = false;
-	bool flagH = true;
-	bool flagCY = false;
+	for (int i = 0; i < numInstructions; i++)
+		cpu->ProcessNextInstruction();
 
-	std::cout << "ZNHCY \n" << flagZ << flagN << flagH << flagCY << "\n";
-
-	cpu.SetFlag(Flag::Z, flagZ);
-	cpu.SetFlag(Flag::N, flagN);
-	cpu.SetFlag(Flag::H, flagH);
-	cpu.SetFlag(Flag::CY, flagCY);
-
-	std::cout << cpu.GetFlag(Flag::Z) << cpu.GetFlag(Flag::N) << cpu.GetFlag(Flag::H) << cpu.GetFlag(Flag::CY) << "\n\n";
+	cpu->DisplayStateInfo();
 }
+
+void ResizeCallback(GLFWwindow* window, int width, int height)
+{
+	glViewport(0, 0, width, height);
+}
+
+void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_ENTER && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
+
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+		ProcessNumInstructions(CPU, 1);
+	
+	if (key == GLFW_KEY_S && action == GLFW_PRESS)
+		ProcessNumInstructions(CPU, 20);
+}
+
+//std::vector<long> GenerateTestInstructions()
+//{
+//	std::vector<long> instructions;
+//	instructions.push_back(DMG::LD_r_n(Register::H, 0xAB));
+//	instructions.push_back(DMG::LD_HL_n(0x50));
+//	return instructions;
+//}
+
+
+
+
+

@@ -153,6 +153,7 @@ public:
 	std::vector<InstructionInfo> InstructionHistory;
 	std::vector<MemoryOperationInfo> MemoryOperationHistory;
 
+	DMG();
 	DMG(std::vector<u8> ROM);
 
 	void RunCycle();

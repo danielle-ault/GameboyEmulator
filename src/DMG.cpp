@@ -3,6 +3,10 @@
 #include "DMG.h"
 #include "Utils.h"
 
+DMG::DMG()
+{
+}
+
 DMG::DMG(std::vector<u8> ROM)
 {
 	this->ROM = ROM;
