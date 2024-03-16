@@ -151,21 +151,25 @@
     <ClCompile Include="src\glad.c" />
     <ClCompile Include="src\Shader.cpp" />
     <ClCompile Include="src\Test.cpp" />
+    <ClCompile Include="src\TileMap.cpp" />
     <ClCompile Include="src\Utils.cpp" />
     <ClCompile Include="src\Window.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="src\Tile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Display.h" />
     <ClInclude Include="include\DMG.h" />
     <ClInclude Include="include\Color.h" />
     <ClInclude Include="include\Shader.h" />
+    <ClInclude Include="include\TileMap.h" />
     <ClInclude Include="include\Window.h" />
     <ClInclude Include="include\Test.h" />
     <ClInclude Include="include\Types.h" />
     <ClInclude Include="include\Utils.h" />
+    <ClInclude Include="include\Tile.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader.frag" />

@@ -6,6 +6,22 @@
 #include "Types.h"
 #include "Color.h"
 #include "Shader.h"
+#include "Tile.h"
+
+struct ObjectSpriteInfo
+{
+	u8 Y;
+	u8 X;
+	u8 TileIndex;
+	u8 Attributes;
+};
+
+const int OBJ_ATTR_PRIORITY_BIT = 0b1000'0000;
+const int OBJ_ATTR_Y_FLIP_BIT = 0b0100'0000;
+const int OBJ_ATTR_X_FLIP_BIT = 0b0010'0000;
+const int OBJ_ATTR_DMG_PALETTE_BIT = 0b0001'0000;
+const int OBJ_ATTR_BANK_BIT = 0b0000'1000;
+const int OBJ_ATTR_CGB_PALETTE_BITS = 0b0000'0111;
 
 class Display
 {
@@ -35,11 +51,14 @@ public:
 	void DrawGraphics();
 	void InitPixels();
 	void DrawTestScreen();
+	void DrawTestTiles();
 	void Cleanup();
 
-	void DrawNextPixel();
+	void DrawNextPixel(u8* memory);
 	u8 GetCurrentPixelX();
 	u8 GetCurrentPixelY();
+
+	void DrawTile(Tile tile, u8 x, u8 y);
 
 //private:
 	u8 CurrentPixelX = 0;

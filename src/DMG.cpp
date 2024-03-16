@@ -16,7 +16,7 @@ DMG::DMG(std::vector<u8> ROM)
 void DMG::RunCycle()
 {
 	for (int i = 0; i < 4; i++)
-		Display.DrawNextPixel();
+		Display.DrawNextPixel(Memory);
 
 	Memory[REGISTER_LY] = Display.GetCurrentPixelY();
 }
@@ -35,7 +35,11 @@ int DMG::GetTotalMemoryMapSize()
 
 int DMG::SetMemory(u16 address, u8 value)
 {
-	AddMemoryOperation(address, value, 'W');
+	if (!SkipDisplayInfo)
+	{
+		AddMemoryOperation(address, value, 'W');
+	}
+	
 	RunCycle();
 	Memory[address] = value;
 	return 0;
@@ -45,7 +49,10 @@ u8 DMG::GetMemory(u16 address)
 {
 	RunCycle();
 	u8 value = Memory[address];
-	AddMemoryOperation(address, value, 'R');
+
+	if (!SkipDisplayInfo)
+		AddMemoryOperation(address, value, 'R');
+	
 	return value;
 }
 
@@ -394,8 +401,11 @@ void DMG::ProcessNextInstruction(bool updateDisplay)
 	CurrentInstruction = ROM[ProgramCounter];
 	CurrentInstructionMasked = GetMaskedInstruction(CurrentInstruction);
 
-	InstructionInfo instructionInfo = InstructionInfo(CurrentInstruction, CurrentInstructionMasked, ProgramCounter);
-	InstructionHistory.push_back(instructionInfo);
+	if (!SkipDisplayInfo)
+	{
+		InstructionInfo instructionInfo = InstructionInfo(CurrentInstruction, CurrentInstructionMasked, ProgramCounter);
+		InstructionHistory.push_back(instructionInfo);
+	}
 	
 	u8 instruction = CurrentInstruction;
 	u8 nextByte = ROM[ProgramCounter + 1];
@@ -648,55 +658,79 @@ void DMG::DisplayAllRegisters(short x, short y)
 	DisplayFlags(x, y + 8);
 }
 
-std::string DMG::DisplayTransferString(std::string to, std::string from)
+std::string DMG::GetTransferString(std::string to, std::string from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	return to + "<-" + from;
 }
 
-std::string DMG::DisplayTransferString(u8 to, u8 from)
+std::string DMG::GetTransferString(u8 to, u8 from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << Utils::GetHexString(to) << "<-" << Utils::GetHexString(from);
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(std::string to, u8 from)
+std::string DMG::GetTransferString(std::string to, u8 from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << to << "<-" << Utils::GetHexString(from);
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(u8 to, std::string from)
+std::string DMG::GetTransferString(u8 to, std::string from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << Utils::GetHexString(to) << "<-" << from;
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(std::string to, u16 from)
+std::string DMG::GetTransferString(std::string to, u16 from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << to << "<-(" << Utils::GetHexString(from) << ")";
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(u16 to, std::string from)
+std::string DMG::GetTransferString(u16 to, std::string from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << "(" << Utils::GetHexString(to) << ")<-" << from;
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(u16 to, u8 from)
+std::string DMG::GetTransferString(u16 to, u8 from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << "(" << Utils::GetHexString(to) << ")<-" << Utils::GetHexString(from);
 	return stream.str();
 }
 
-std::string DMG::DisplayTransferString(u8 to, u16 from)
+std::string DMG::GetTransferString(u8 to, u16 from)
 {
+	if (SkipDisplayInfo) 
+		return "";
+
 	std::stringstream stream;
 	stream << Utils::GetHexString(to) << "<-(" << Utils::GetHexString(from) << ")";
 	return stream.str();
@@ -716,8 +750,11 @@ void DMG::LoadRegisterToRegister(u8 instruction)
 	//RunCycle();
 	ProgramCounter++;
 
-	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), GetRegisterName(registerToLoad));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(GetRegisterName(registerToLoadTo), GetRegisterName(registerToLoad));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadImmediateToRegister(u8 instruction)
@@ -728,8 +765,11 @@ void DMG::LoadImmediateToRegister(u8 instruction)
 	
 	ProgramCounter++;
 	
-	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), immediateValue);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(GetRegisterName(registerToLoadTo), immediateValue);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadHLToRegister(u8 instruction)
@@ -744,8 +784,11 @@ void DMG::LoadHLToRegister(u8 instruction)
 	//RunCycle();
 	ProgramCounter++;
 	
-	std::string transferString = DisplayTransferString(GetRegisterName(registerToLoadTo), address);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(GetRegisterName(registerToLoadTo), address);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadRegisterToHL(u8 instruction)
@@ -759,8 +802,11 @@ void DMG::LoadRegisterToHL(u8 instruction)
 
 	ProgramCounter++;
 	
-	std::string transferString = DisplayTransferString(address, GetRegisterName(registerToLoad));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, GetRegisterName(registerToLoad));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadImmediateToHL()
@@ -772,8 +818,11 @@ void DMG::LoadImmediateToHL()
 	//RunCycle();
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(address, immediateValue);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, immediateValue);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadBCToA(u8 instruction)
@@ -785,8 +834,11 @@ void DMG::LoadBCToA(u8 instruction)
 	//RunCycle();
 	ProgramCounter++;
 
-	std::string transferString = DisplayTransferString("A", "(BC)");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("A", "(BC)");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadDEToA(u8 instruction)
@@ -798,8 +850,11 @@ void DMG::LoadDEToA(u8 instruction)
 	//RunCycle();
 	ProgramCounter++;
 
-	std::string transferString = DisplayTransferString("A", "(DE)");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("A", "(DE)");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadCLowToA()
@@ -813,8 +868,11 @@ void DMG::LoadCLowToA()
 	//RunCycle();
 	ProgramCounter++;
 
-	std::string transferString = DisplayTransferString("A", "(C)");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("A", "(C)");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadAToCLow()
@@ -828,8 +886,11 @@ void DMG::LoadAToCLow()
 	//RunCycle();
 	ProgramCounter++;
 
-	std::string transferString = DisplayTransferString("(C)", "A");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("(C)", "A");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadImmediateLowToA()
@@ -840,8 +901,11 @@ void DMG::LoadImmediateLowToA()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString("A", address);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("A", address);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadAToImmediateLow()
@@ -852,8 +916,11 @@ void DMG::LoadAToImmediateLow()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(address, "A");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, "A");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadImmediateAddressToA()
@@ -864,8 +931,11 @@ void DMG::LoadImmediateAddressToA()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString("A", memoryAtAddress);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("A", memoryAtAddress);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadAToImmediateAddress()
@@ -875,8 +945,11 @@ void DMG::LoadAToImmediateAddress()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(address, Registers.A);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, Registers.A);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadHLIToA()
@@ -905,8 +978,11 @@ void DMG::LoadAToRegisterPair(u8 instruction)
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(address, "A");
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, "A");
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadAToHLI()
@@ -917,8 +993,11 @@ void DMG::LoadAToHLI()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(HL, Registers.A);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(HL, Registers.A);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadAToHLD()
@@ -929,8 +1008,11 @@ void DMG::LoadAToHLD()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(HL, Registers.A);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(HL, Registers.A);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 //
@@ -945,8 +1027,11 @@ void DMG::LoadImmediateToRegisterPair(u8 instruction)
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(GetRegisterPairName(regPair), Utils::GetHexString(immediateValue));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(GetRegisterPairName(regPair), Utils::GetHexString(immediateValue));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadHLToStackPointer()
@@ -956,8 +1041,11 @@ void DMG::LoadHLToStackPointer()
 	
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString("SP", Utils::GetHexString(StackPointer));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("SP", Utils::GetHexString(StackPointer));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::PushRegisterPairToStack(u8 instruction)
@@ -973,8 +1061,11 @@ void DMG::PushRegisterPairToStack(u8 instruction)
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString("SP", GetRegisterPairName(regPair));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("SP", GetRegisterPairName(regPair));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::PopFromStackToRegisterPair(u8 instruction)
@@ -987,8 +1078,11 @@ void DMG::PopFromStackToRegisterPair(u8 instruction)
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(GetRegisterPairName(regPair), value);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(GetRegisterPairName(regPair), value);
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadStackPointerPlusOffsetToHL()
@@ -1004,8 +1098,11 @@ void DMG::LoadStackPointerPlusOffsetToHL()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString("HL", Utils::GetHexString((u16)(StackPointer + offset)));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString("HL", Utils::GetHexString((u16)(StackPointer + offset)));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::LoadStackPointerToImmediateAddress()
@@ -1018,8 +1115,11 @@ void DMG::LoadStackPointerToImmediateAddress()
 
 	ProgramCounter += 1;
 
-	std::string transferString = DisplayTransferString(address, Utils::GetHexString(StackPointer));
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+	if (!SkipDisplayInfo)
+    {
+        std::string transferString = GetTransferString(address, Utils::GetHexString(StackPointer));
+	    InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = transferString;
+    }
 }
 
 void DMG::OperationFromRegister(Operation operation, u8 instruction)
@@ -1523,6 +1623,12 @@ void DMG::JumpToImmediate()
 	u16 address = GetNextImmediateAddress();
 	RunCycle();
 	ProgramCounter = address;
+
+	if (!SkipDisplayInfo)
+	{
+		std::string infoString = "nn=" + Utils::GetHexString(address);
+		InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+	}
 }
 
 void DMG::JumpToImmediateIfTrue(u8 instruction)
@@ -1540,8 +1646,11 @@ void DMG::JumpToImmediateIfTrue(u8 instruction)
 		ProgramCounter += 1;
 	}
 
-	std::string infoString = "cc=" + Utils::GetBinary((long)condition, false);
-	InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+	if (!SkipDisplayInfo)
+	{
+		std::string infoString = "cc=" + Utils::GetBinary((long)condition, false);
+		InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+	}
 }
 
 void DMG::JumpToOffset()

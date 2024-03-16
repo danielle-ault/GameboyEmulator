@@ -8,6 +8,8 @@
 #include <vector>
 #include <conio.h>
 #include <Windows.h>
+#include <chrono>
+#include <thread>
 
 //#include <glad/glad.h>
 //#include <GLFW/glfw3.h>
@@ -15,17 +17,22 @@
 #include "Window.h"
 #include "DMG.h"
 #include "Utils.h"
+#include "Tile.h"
 
-std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world.gb";//"D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb.test";
+std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world.gb";
+//std::string filepathToROM = "D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb";
 //std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/test instructions/test_instructions.gb";
 
 void TestFlagInputOutput(DMG cpu);
 void ConsoleCursorToXY(short x, short y);
 void clear_screen(char fill = ' ');
-void ProcessNumInstructions(DMG *cpu, int numInstructions);
+void ProcessNumInstructions(DMG *cpu, int numInstructions, bool updateDisplay = true);
 
 void ResizeCallback(GLFWwindow* window, int width, int height);
 void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+void RunTest();
+
 
 int Scale = 2;
 
@@ -33,6 +40,8 @@ DMG* CPU;
 
 int main()
 {
+	RunTest();
+
 	Window window(Display::SCREEN_WIDTH * Scale,
 		          Display::SCREEN_HEIGHT * Scale,
 		          "Gameboy Emulator",
@@ -45,9 +54,6 @@ int main()
 	DMG cpu_temp = DMG(ROM);
 	CPU = &cpu_temp;
 	CPU->ProgramCounter = 0x100;
-	//int programCounter = 0x100;
-
-	//TestFlagInputOutput(cpu);
 
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
 	int columns, rows;
@@ -57,12 +63,27 @@ int main()
 	rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
 	CPU->Display.InitGraphics(Scale);
+	CPU->Display.DrawGraphics();
+	window.SwapBuffersAndPollEvents();
 	
+	size_t i = 0;
 	while (!window.ShouldClose())
 	{
-		CPU->Display.DrawGraphics();
-		window.SwapBuffersAndPollEvents();
+		//auto start = std::chrono::system_clock::now();
 
+		CPU->ProcessNextInstruction(false);
+		bool updateDisplay = i % 1000000 == 0;
+		if (updateDisplay) CPU->DisplayStateInfo();
+		i++;
+
+		//CPU->Display.DrawGraphics();
+		//window.SwapBuffersAndPollEvents();
+
+		//auto end = std::chrono::system_clock::now();
+		//auto waitTime = std::chrono::nanoseconds(239) - (start - end);
+		//std::this_thread::sleep_for(waitTime);
+		
+		
 		//char input = (char)_getch();
 
 		//switch (input)
@@ -116,7 +137,7 @@ void clear_screen(char fill)
 	SetConsoleCursorPosition(console, tl);
 }
 
-void ProcessNumInstructions(DMG *cpu, int numInstructions)
+void ProcessNumInstructions(DMG *cpu, int numInstructions, bool updateDisplay)
 {
 	for (int i = 0; i < numInstructions; i++)
 		cpu->ProcessNextInstruction();
@@ -139,6 +160,20 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 	
 	if (key == GLFW_KEY_S && action == GLFW_PRESS)
 		ProcessNumInstructions(CPU, 20);
+}
+
+void RunTest()
+{
+	std::vector<u8> tileBytesRaw = { 0x3c, 0x7e,
+									 0x42, 0x42,
+									 0x42, 0x42,
+									 0x42, 0x42,
+									 0x7e, 0x5e,
+									 0x7e, 0x0a,
+									 0x7c, 0x56,
+									 0x38, 0x7c };
+
+	Tile tile = Tile(tileBytesRaw);
 }
 
 //std::vector<long> GenerateTestInstructions()

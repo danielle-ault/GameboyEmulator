@@ -2,6 +2,14 @@
 
 #include <string>
 
+// Macros
+
+// GETBIT, SETBIT, and CLRBIT from https://www.chiefdelphi.com/t/extracting-individual-bits-in-c/48028/4
+#define GETBIT(var, bit)		(((var) & (1 << (bit))) ? 1 : 0)
+#define SETBIT(var, bit)		(var |= (1 << (bit)))
+#define CLRBIT(var, bit)		(var &= ~(1 << (bit)))
+#define SETBITVALUE(var, bit, value)	((value) ? SETBIT((var), (bit)) : CLRBIT((var), (bit)))	
+
 class Utils
 {
 public:

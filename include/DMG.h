@@ -150,6 +150,7 @@ public:
 	u8 CurrentInstruction;
 	u8 CurrentInstructionMasked;
 
+	bool SkipDisplayInfo = true;
 	std::vector<InstructionInfo> InstructionHistory;
 	std::vector<MemoryOperationInfo> MemoryOperationHistory;
 
@@ -217,14 +218,14 @@ public:
 
 
 	
-	std::string DisplayTransferString(std::string to, std::string from);
-	std::string DisplayTransferString(u8 to, u8 from);
-	std::string DisplayTransferString(std::string to, u8 from);
-	std::string DisplayTransferString(u8 to, std::string from);
-	std::string DisplayTransferString(std::string to, u16 from);
-	std::string DisplayTransferString(u16 to, std::string from);
-	std::string DisplayTransferString(u16 to, u8 from);
-	std::string DisplayTransferString(u8 to, u16 from);
+	std::string GetTransferString(std::string to, std::string from);
+	std::string GetTransferString(u8 to, u8 from);
+	std::string GetTransferString(std::string to, u8 from);
+	std::string GetTransferString(u8 to, std::string from);
+	std::string GetTransferString(std::string to, u16 from);
+	std::string GetTransferString(u16 to, std::string from);
+	std::string GetTransferString(u16 to, u8 from);
+	std::string GetTransferString(u8 to, u16 from);
 
 	////
 	//// Instruction execution
