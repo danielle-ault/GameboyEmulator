@@ -10,6 +10,7 @@ public:
 	Window(int width, int height, const char* title, GLFWframebuffersizefun resizeCallback, GLFWkeyfun keyPressCallback);
 	
 	int ShouldClose();
+	void SwapBuffers();
 	void SwapBuffersAndPollEvents();
 	void Close();
 	

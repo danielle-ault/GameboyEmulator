@@ -33,20 +33,24 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 
 void RunTest();
 
+enum DebugViewMode { ViewCPU, ViewRAM };
+enum DebugViewMode DebugViewMode = ViewRAM;
 
 int Scale = 2;
 
 DMG* CPU;
 
+class Window Window = class Window(Display::SCREEN_WIDTH* Scale,
+	                               Display::SCREEN_HEIGHT* Scale,
+	                               "Gameboy Emulator",
+	                               ResizeCallback,
+	                               KeypressCallback);
+
 int main()
 {
 	RunTest();
 
-	Window window(Display::SCREEN_WIDTH * Scale,
-		          Display::SCREEN_HEIGHT * Scale,
-		          "Gameboy Emulator",
-		          ResizeCallback,
-		          KeypressCallback);
+	
 
 	std::ifstream input(filepathToROM, std::ios::binary);
 	std::vector<uint8_t> ROM(std::istreambuf_iterator<char>(input), {});
@@ -62,22 +66,36 @@ int main()
 	columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 	rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
+	CPU->Display.Window = &Window;
 	CPU->Display.InitGraphics(Scale);
 	CPU->Display.DrawGraphics();
-	window.SwapBuffersAndPollEvents();
+	Window.SwapBuffersAndPollEvents();
 	
 	size_t i = 0;
-	while (!window.ShouldClose())
+	while (!Window.ShouldClose())
 	{
 		//auto start = std::chrono::system_clock::now();
 
 		CPU->ProcessNextInstruction(false);
 		bool updateDisplay = i % 1000000 == 0;
-		if (updateDisplay) CPU->DisplayStateInfo();
+		if (updateDisplay)
+		{
+			switch (DebugViewMode)
+			{
+			case DebugViewMode::ViewCPU:
+				CPU->DisplayStateInfo();
+				break;
+			case DebugViewMode::ViewRAM:
+				CPU->DisplayRAMInfo();
+				break;
+			}
+
+		}
 		i++;
 
 		//CPU->Display.DrawGraphics();
 		//window.SwapBuffersAndPollEvents();
+		glfwPollEvents();
 
 		//auto end = std::chrono::system_clock::now();
 		//auto waitTime = std::chrono::nanoseconds(239) - (start - end);
@@ -97,7 +115,7 @@ int main()
 //exit_loop:;
 
 	CPU->Display.Cleanup();
-	window.Close();
+	Window.Close();
 }
 
 void TestFlagInputOutput(DMG cpu)
@@ -152,14 +170,56 @@ void ResizeCallback(GLFWwindow* window, int width, int height)
 
 void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	if (key == GLFW_KEY_ENTER && action == GLFW_PRESS)
-		glfwSetWindowShouldClose(window, true);
+	if (action == GLFW_PRESS)
+	{
+		switch (key)
+		{
+		case GLFW_KEY_ENTER: glfwSetWindowShouldClose(window, true); break;
+		case GLFW_KEY_T:
+			CPU->Display.DrawTestScreen();
+			CPU->Display.DrawGraphics();
+			Window.SwapBuffers();
+			break;
 
-	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-		ProcessNumInstructions(CPU, 1);
-	
-	if (key == GLFW_KEY_S && action == GLFW_PRESS)
-		ProcessNumInstructions(CPU, 20);
+		}
+	}
+
+	if (action == GLFW_PRESS && DebugViewMode == DebugViewMode::ViewCPU)
+	{
+		switch (key)
+		{
+		case GLFW_KEY_SPACE: ProcessNumInstructions(CPU, 1); break;
+		case GLFW_KEY_S: ProcessNumInstructions(CPU, 20); break;
+		}
+	}
+
+	if ((action == GLFW_PRESS || action == GLFW_REPEAT) && DebugViewMode == DebugViewMode::ViewRAM)
+	{
+		switch (key)
+		{
+		case GLFW_KEY_DOWN:
+			CPU->RAMDisplayStartAddress += CPU->RAMDisplayBytesPerLine;
+			CPU->DisplayRAMInfo();
+			break;
+		case GLFW_KEY_UP:
+			CPU->RAMDisplayStartAddress -= CPU->RAMDisplayBytesPerLine;
+			if (CPU->RAMDisplayStartAddress < 0)
+				CPU->RAMDisplayStartAddress = 0;
+			CPU->DisplayRAMInfo();
+			break;
+
+		case GLFW_KEY_PAGE_DOWN:
+			CPU->RAMDisplayStartAddress += CPU->RAMDisplayBytesPerLine * 0x100;
+			CPU->DisplayRAMInfo();
+			break;
+		case GLFW_KEY_PAGE_UP:
+			CPU->RAMDisplayStartAddress -= CPU->RAMDisplayBytesPerLine * 0x100;
+			if (CPU->RAMDisplayStartAddress < 0)
+				CPU->RAMDisplayStartAddress = 0;
+			CPU->DisplayRAMInfo();
+			break;
+		}
+	}
 }
 
 void RunTest()

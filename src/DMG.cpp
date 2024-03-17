@@ -11,6 +11,11 @@ DMG::DMG(std::vector<u8> ROM)
 {
 	this->ROM = ROM;
 	ProgramCounter = 0x100;
+
+	for (int i = 0; i < 0x8000; i++)
+	{
+		Memory[i] = ROM[i];
+	}
 }
 
 void DMG::RunCycle()
@@ -656,6 +661,35 @@ void DMG::DisplayAllRegisters(short x, short y)
 	DisplayValueGeneric("SP", StackPointer, x + 7, y + 1);
 
 	DisplayFlags(x, y + 8);
+}
+
+void DMG::DisplayRAMInfo()
+{
+	u8 consoleWidth = Utils::GetConsoleWidth();
+	u8 consoleHeight = Utils::GetConsoleHeight();
+
+	Utils::ClearConsole();
+
+	//int numBytesPerLine = 0xF;
+
+	for (int i = 1; i < consoleHeight - 1; i++)
+	{
+		DisplayRAMLine(i, RAMDisplayStartAddress + (i - 1) * RAMDisplayBytesPerLine, RAMDisplayBytesPerLine, 2);
+	}
+}
+
+void DMG::DisplayRAMLine(int y, u16 startAddress, u8 numBytes, int numBytesWide)
+{
+	std::string addressString = "|0x" + Utils::GetHexString(startAddress, true) + "|";
+	Utils::ConsoleTextAtLocation(0, y, addressString);
+
+	std::string bytesString = "";
+	for (int i = 0; i < numBytes; i++)
+	{
+		bytesString += Utils::GetHexString(Memory[startAddress + i], true) + " ";
+	}
+
+	Utils::ConsoleTextAtLocation(std::strlen(addressString.c_str()) + 1, y, bytesString);
 }
 
 std::string DMG::GetTransferString(std::string to, std::string from)

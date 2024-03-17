@@ -13,14 +13,37 @@ Color Display::COLORS[] = { COLOR_3, COLOR_2, COLOR_1, COLOR_0 };
 
 void Display::InitGraphics(int scale)
 {
-	Positions = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3];
-	Colors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
-	Vertices = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2];
+	//Positions = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3];
+	//Colors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
+	//Vertices = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2];
 	//Positions = new float[4 * 3];
-	//Colors = new Color[4];
+	//VertexColors = new Color[4];
+	PixelColors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
 	//Vertices = new float[4 * 3 * 2];
+	//Indices = new unsigned short[6];
 
-	InitPixels();
+	//float quadPositions[4 * 3] = {
+	//	-1.0f, -1.0f, 0.0f,
+	//	 1.0f, -1.0f, 0.0f,
+	//	 1.0f,  1.0f, 0.0f,
+	//	-1.0f,  1.0f, 0.0f
+	//};
+	//Positions = quadPositions;
+
+	//Color quadColors[4] = {
+	//	Color(255, 255, 255),
+	//	Color(255, 255, 255),
+	//	Color(255, 255, 255),
+	//	Color(255, 255, 255)
+	//};
+	//VertexColors = quadColors;
+
+	//unsigned short quadIndices[6] = {
+	//	0, 2, 1,   0, 3, 2
+	//};
+	//Indices = quadIndices;
+
+	//InitPixels();
 	//DrawTestScreen();
 	DrawTestTiles();
 
@@ -28,7 +51,7 @@ void Display::InitGraphics(int scale)
 	glBindVertexArray(VertexArrayID);
 
 	// Generate Vertex Attributes
-	int numVertices = SCREEN_HEIGHT * SCREEN_WIDTH;
+	int numVertices = 4;// SCREEN_HEIGHT* SCREEN_WIDTH;
 	std::vector<float> vertexAttributes;
 
 	for (int i = 0; i < numVertices; i++)
@@ -37,9 +60,11 @@ void Display::InitGraphics(int scale)
 		vertexAttributes.push_back(Positions[iPos + 0]);
 		vertexAttributes.push_back(Positions[iPos + 1]);
 		vertexAttributes.push_back(Positions[iPos + 2]);
-		vertexAttributes.push_back(Colors[i].r);
-		vertexAttributes.push_back(Colors[i].g);
-		vertexAttributes.push_back(Colors[i].b);
+		vertexAttributes.push_back(VertexColors[i].r);
+		vertexAttributes.push_back(VertexColors[i].g);
+		vertexAttributes.push_back(VertexColors[i].b);
+		vertexAttributes.push_back(TexCoords[(i * 2)]);
+		vertexAttributes.push_back(TexCoords[(i * 2) + 1]);
 	}
 
 	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
@@ -47,18 +72,49 @@ void Display::InitGraphics(int scale)
 	// Vertex Buffer
 	glGenBuffers(1, &VertexBufferID);
 	glBindBuffer(GL_ARRAY_BUFFER, VertexBufferID);
-	glBufferData(GL_ARRAY_BUFFER, 
-		         SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), 
+	glBufferData(GL_ARRAY_BUFFER,
+		         4 * 3 * 2 * sizeof(float),//SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), 
 		         Vertices, 
 		         GL_DYNAMIC_DRAW);
 
+	// Index buffer
+	glGenBuffers(1, &IndexBufferID);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IndexBufferID);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned short), Indices, GL_STATIC_DRAW);
+
+	// texture stuff
+	glGenTextures(1, &TextureID);
+	glBindTexture(GL_TEXTURE_2D, TextureID);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	std::vector<float> textureData = GetTextureData(PixelColors);
+	glTexImage2D(
+		GL_TEXTURE_2D, 
+		0, 
+		GL_RGB, 
+		SCREEN_WIDTH, 
+		SCREEN_HEIGHT, 
+		0, 
+		GL_RGB, 
+		GL_FLOAT, 
+		textureData.data());
+
+	/*glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);*/
+
 	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
 	// color attribute
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+
+	// texture attribute
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
 
 	glPointSize(scale);
 
@@ -71,7 +127,7 @@ void Display::DrawGraphics()
 
 	// Generate Vertex Attributes
 	// TODO: make this its own function, it's currently duplicated here and in InitGraphics
-	int numVertices = SCREEN_HEIGHT * SCREEN_WIDTH;
+	int numVertices = 4;// SCREEN_HEIGHT* SCREEN_WIDTH;
 	std::vector<float> vertexAttributes;
 	for (int i = 0; i < numVertices; i++)
 	{
@@ -79,27 +135,53 @@ void Display::DrawGraphics()
 		vertexAttributes.push_back(Positions[iPos + 0]);
 		vertexAttributes.push_back(Positions[iPos + 1]);
 		vertexAttributes.push_back(Positions[iPos + 2]);
-		vertexAttributes.push_back(Colors[i].r);
-		vertexAttributes.push_back(Colors[i].g);
-		vertexAttributes.push_back(Colors[i].b);
+		vertexAttributes.push_back(VertexColors[i].r);
+		vertexAttributes.push_back(VertexColors[i].g);
+		vertexAttributes.push_back(VertexColors[i].b);
+		vertexAttributes.push_back(TexCoords[(i * 2)]);
+		vertexAttributes.push_back(TexCoords[(i * 2) + 1]);
 	}
 	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
 
-	glBindBuffer(GL_ARRAY_BUFFER, VertexBufferID);
-	glBufferData(GL_ARRAY_BUFFER, SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), Vertices, GL_DYNAMIC_DRAW);
-	//glBufferSubData(GL_ARRAY_BUFFER, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), Vertices);
-
-	//// position attribute
-	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	//glEnableVertexAttribArray(0);
-
-	//// color attribute
-	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	//glEnableVertexAttribArray(1);
-
 	Shader.Use();
 
-	glDrawArrays(GL_POINTS, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 6);
+	std::vector<float> textureData = GetTextureData(PixelColors);
+	glTexSubImage2D(
+		GL_TEXTURE_2D,
+		0, 0, 0,
+		SCREEN_WIDTH, SCREEN_HEIGHT,
+		GL_RGB,
+		GL_FLOAT,
+		(void*)textureData.data());
+
+	//glTexImage2D(
+	//	GL_TEXTURE_2D,
+	//	0,
+	//	GL_RGB,
+	//	SCREEN_WIDTH, 
+	//	SCREEN_HEIGHT,
+	//	0,
+	//	GL_RGB,
+	//	GL_FLOAT,
+	//	textureData.data());
+
+	//glDrawArrays(GL_TRIANGLES, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 6);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IndexBufferID);
+	glBindTexture(GL_TEXTURE_2D, TextureID);
+	//glBindVertexArray(VertexArrayID);
+	glDrawElements(GL_TRIANGLES, sizeof(Indices) / sizeof(Indices[0]), GL_UNSIGNED_SHORT, (void*)0);
+}
+
+std::vector<float> Display::GetTextureData(Color* colors)
+{
+	std::vector<float> data(SCREEN_WIDTH * SCREEN_HEIGHT * 3, 1);
+	for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT * 3; i += 3)
+	{
+		data[i + 0] = colors[i / 3].r;
+		data[i + 1] = colors[i / 3].g;
+		data[i + 2] = colors[i / 3].b;
+	}
+	return data;
 }
 
 void Display::InitPixels()
@@ -172,9 +254,11 @@ void Display::DrawTestTiles()
 
 void Display::Cleanup()
 {
-	delete[] Positions;
-	delete[] Colors;
-	delete[] Vertices;
+	//delete[] Positions;
+	//delete[] VertexColors;
+	//delete[] PixelColors;
+	//delete[] Vertices;
+	//delete[] Indices;
 }
 
 void Display::DrawNextPixel(u8* memory)
@@ -189,7 +273,8 @@ void Display::DrawNextPixel(u8* memory)
 
 	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
 	{
-		//DrawGraphics();
+		DrawGraphics();
+		Window->SwapBuffers();
 		CurrentPixelY = 0;
 	}
 
@@ -229,7 +314,7 @@ void Display::DrawTile(Tile tile, u8 xPos, u8 yPos)
 		{
 			int colorIndex = (yPos + (7 - y)) * SCREEN_WIDTH + (xPos + x);
 			int pixelIndex = y * 8 + x;
-			Colors[colorIndex] = COLORS[tile.Pixels[pixelIndex]];
+			PixelColors[colorIndex] = COLORS[tile.Pixels[pixelIndex]];
 		}
 	}
 }
@@ -237,15 +322,15 @@ void Display::DrawTile(Tile tile, u8 xPos, u8 yPos)
 void Display::DrawPixel(u8 x, u8 y, float r, float g, float b)
 {
 	int i = (y * SCREEN_WIDTH + x);
-	Colors[i].r = r;
-	Colors[i].g = g;
-	Colors[i].b = b;
+	PixelColors[i].r = r;
+	PixelColors[i].g = g;
+	PixelColors[i].b = b;
 }
 
 void Display::DrawPixel(u8 x, u8 y, Color color)
 {
 	int i = (y * SCREEN_WIDTH + x);
-	Colors[i] = color;
+	PixelColors[i] = color;
 }
 
 

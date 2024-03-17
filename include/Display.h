@@ -7,6 +7,7 @@
 #include "Color.h"
 #include "Shader.h"
 #include "Tile.h"
+#include "Window.h"
 
 struct ObjectSpriteInfo
 {
@@ -41,14 +42,46 @@ public:
 	// Graphics Member Variables
 	unsigned int VertexArrayID;
 	unsigned int VertexBufferID;
+	unsigned int IndexBufferID;
+	unsigned int TextureID;
 	class Shader Shader;
-	float* Positions;// [SCREEN_WIDTH * SCREEN_HEIGHT * 3] = { 0.0f };
-	Color* Colors;// [SCREEN_WIDTH * SCREEN_HEIGHT] ;
-	float* Vertices;// [(sizeof(Colors) / sizeof(Colors[0])) * 3 * 2] = { 0.0f };
+	
+	float Positions[3*4] = {
+		-1.0f, -1.0f, 0.0f,
+		 1.0f, -1.0f, 0.0f,
+		 1.0f,  1.0f, 0.0f,
+		-1.0f,  1.0f, 0.0f
+	};
+
+	Color VertexColors[4] = {
+		Color(255, 255, 255),
+		Color(255, 255, 255),
+		Color(255, 255, 255),
+		Color(255, 255, 255)
+	};
+	
+
+	float Vertices[4*(3+3+2)];// [(sizeof(Colors) / sizeof(Colors[0])) * 3 * 2] = { 0.0f };
+	
+	unsigned short Indices[6] = {
+		0, 2, 1,   0, 3, 2
+	};
+	
+	float TexCoords[8] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f
+	};
+	
+	Color* PixelColors;
+
+	class Window* Window;
 
 	// Graphics Member Functions
 	void InitGraphics(int scale);
 	void DrawGraphics();
+	std::vector<float> GetTextureData(Color* colors);
 	void InitPixels();
 	void DrawTestScreen();
 	void DrawTestTiles();

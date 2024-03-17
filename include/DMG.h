@@ -154,6 +154,9 @@ public:
 	std::vector<InstructionInfo> InstructionHistory;
 	std::vector<MemoryOperationInfo> MemoryOperationHistory;
 
+	u16 RAMDisplayStartAddress = 0x8000;
+	u8 RAMDisplayBytesPerLine = 0x10;
+
 	DMG();
 	DMG(std::vector<u8> ROM);
 
@@ -210,12 +213,15 @@ public:
 	void DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo);
 	void DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight);
 	void DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info);
+	
 	void DisplayStateInfo();
 	void DisplayValueGeneric(std::string name, u16 value, short x, short y);
 	void DisplayRegister(Register reg, short x, short y);
 	void DisplayFlags(int x, int y);
 	void DisplayAllRegisters(short x, short y);
 
+	void DisplayRAMInfo();
+	void DisplayRAMLine(int y, u16 startAddress, u8 numBytes, int numBytesWide);
 
 	
 	std::string GetTransferString(std::string to, std::string from);
