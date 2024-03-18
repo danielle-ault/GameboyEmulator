@@ -61,9 +61,17 @@ public:
 		Color(255, 255, 255)
 	};
 	
-
-	float Vertices[4*(3+3+2)];// [(sizeof(Colors) / sizeof(Colors[0])) * 3 * 2] = { 0.0f };
 	
+	//float Vertices[4*(3+3+2)];// [(sizeof(Colors) / sizeof(Colors[0])) * 3 * 2] = { 0.0f };
+	
+	float Vertices[4*8] = {
+		// positions          // colors           // texture coords
+		 1.0f,  1.0f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f, // top right
+		 1.0f, -1.0f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f, // bottom right
+		-1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+		-1.0f,  1.0f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left 
+	};
+
 	unsigned short Indices[6] = {
 		0, 2, 1,   0, 3, 2
 	};

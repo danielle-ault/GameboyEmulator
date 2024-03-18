@@ -29,20 +29,20 @@ void Display::InitGraphics(int scale)
 	glGenVertexArrays(1, &VertexArrayID);
 	glBindVertexArray(VertexArrayID);
 
-	GenerateVertexAttributes();
+	//GenerateVertexAttributes();
 
 	// Vertex Buffer
 	glGenBuffers(1, &VertexBufferID);
 	glBindBuffer(GL_ARRAY_BUFFER, VertexBufferID);
 	glBufferData(GL_ARRAY_BUFFER,
-		         4 * 3 * 2 * sizeof(float),//SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), 
+		         sizeof(Vertices),//SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2 * sizeof(Vertices[0]), 
 		         Vertices, 
 		         GL_DYNAMIC_DRAW);
 
 	// Index buffer
 	glGenBuffers(1, &IndexBufferID);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IndexBufferID);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned short), Indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
 
 	// texture stuff
 	glGenTextures(1, &TextureID);
@@ -84,9 +84,7 @@ void Display::DrawGraphics()
 {
 	//glClear(GL_COLOR_BUFFER_BIT);
 
-	// Generate Vertex Attributes
-	// TODO: make this its own function, it's currently duplicated here and in InitGraphics
-	GenerateVertexAttributes();
+	//GenerateVertexAttributes();
 
 	Shader.Use();
 
@@ -130,10 +128,24 @@ void Display::GenerateVertexAttributes()
 		vertexAttributes[(i * 8) + 3] = VertexColors[i].r;
 		vertexAttributes[(i * 8) + 4] = VertexColors[i].g;
 		vertexAttributes[(i * 8) + 5] = VertexColors[i].b;
-		vertexAttributes[(i * 8) + 6] = TexCoords[(i * 2)];
+		vertexAttributes[(i * 8) + 6] = TexCoords[(i * 2) + 0];
 		vertexAttributes[(i * 8) + 7] = TexCoords[(i * 2) + 1];
 	}
 	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
+	
+	//// Debug Display Vertex Attributes
+	//Utils::ClearConsole();
+	//for (int i = 0; i < 4 * 8; i += 8)
+	//{
+	//	std::cout << Vertices[i + 0] << ", ";
+	//	std::cout << Vertices[i + 1] << ", ";
+	//	std::cout << Vertices[i + 2] << ",   ";
+	//	std::cout << Vertices[i + 3] << ", ";
+	//	std::cout << Vertices[i + 4] << ", ";
+	//	std::cout << Vertices[i + 5] << ",   ";
+	//	std::cout << Vertices[i + 6] << ", ";
+	//	std::cout << Vertices[i + 7] << ", " << std::endl;
+	//}
 }
 
 std::vector<float> Display::GetTextureData(Color* colors)
