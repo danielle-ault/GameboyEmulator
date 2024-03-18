@@ -7,6 +7,7 @@
 #include "Color.h"
 #include "Shader.h"
 #include "Tile.h"
+#include "TileMap.h"
 #include "Window.h"
 
 struct ObjectSpriteInfo
@@ -81,6 +82,7 @@ public:
 	// Graphics Member Functions
 	void InitGraphics(int scale);
 	void DrawGraphics();
+	void GenerateVertexAttributes();
 	std::vector<float> GetTextureData(Color* colors);
 	void InitPixels();
 	void DrawTestScreen();
@@ -92,6 +94,7 @@ public:
 	u8 GetCurrentPixelY();
 
 	void DrawTile(Tile tile, u8 x, u8 y);
+	void DrawTileMap(TileMap* tileMap);
 
 //private:
 	u8 CurrentPixelX = 0;

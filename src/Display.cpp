@@ -9,39 +9,18 @@ Color Display::COLOR_0 = Color(155 + 20, 188 + 20, 15 + 20);
 Color Display::COLOR_1 = Color(139, 172, 15);
 Color Display::COLOR_2 = Color(48, 98, 48);
 Color Display::COLOR_3 = Color(15, 56, 15);
-Color Display::COLORS[] = { COLOR_3, COLOR_2, COLOR_1, COLOR_0 };
+
+//Color Display::COLOR_0 = Color(255, 255, 255);
+//Color Display::COLOR_1 = Color(170, 170, 170);
+//Color Display::COLOR_2 = Color(85, 85, 85);
+//Color Display::COLOR_3 = Color(0, 0, 0);
+
+//Color Display::COLORS[] = { COLOR_3, COLOR_2, COLOR_1, COLOR_0 };
+Color Display::COLORS[] = { COLOR_0, COLOR_1, COLOR_2, COLOR_3 };
 
 void Display::InitGraphics(int scale)
 {
-	//Positions = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3];
-	//Colors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
-	//Vertices = new float[SCREEN_WIDTH * SCREEN_HEIGHT * 3 * 2];
-	//Positions = new float[4 * 3];
-	//VertexColors = new Color[4];
 	PixelColors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
-	//Vertices = new float[4 * 3 * 2];
-	//Indices = new unsigned short[6];
-
-	//float quadPositions[4 * 3] = {
-	//	-1.0f, -1.0f, 0.0f,
-	//	 1.0f, -1.0f, 0.0f,
-	//	 1.0f,  1.0f, 0.0f,
-	//	-1.0f,  1.0f, 0.0f
-	//};
-	//Positions = quadPositions;
-
-	//Color quadColors[4] = {
-	//	Color(255, 255, 255),
-	//	Color(255, 255, 255),
-	//	Color(255, 255, 255),
-	//	Color(255, 255, 255)
-	//};
-	//VertexColors = quadColors;
-
-	//unsigned short quadIndices[6] = {
-	//	0, 2, 1,   0, 3, 2
-	//};
-	//Indices = quadIndices;
 
 	//InitPixels();
 	//DrawTestScreen();
@@ -50,24 +29,7 @@ void Display::InitGraphics(int scale)
 	glGenVertexArrays(1, &VertexArrayID);
 	glBindVertexArray(VertexArrayID);
 
-	// Generate Vertex Attributes
-	int numVertices = 4;// SCREEN_HEIGHT* SCREEN_WIDTH;
-	std::vector<float> vertexAttributes;
-
-	for (int i = 0; i < numVertices; i++)
-	{
-		int iPos = i * 3;
-		vertexAttributes.push_back(Positions[iPos + 0]);
-		vertexAttributes.push_back(Positions[iPos + 1]);
-		vertexAttributes.push_back(Positions[iPos + 2]);
-		vertexAttributes.push_back(VertexColors[i].r);
-		vertexAttributes.push_back(VertexColors[i].g);
-		vertexAttributes.push_back(VertexColors[i].b);
-		vertexAttributes.push_back(TexCoords[(i * 2)]);
-		vertexAttributes.push_back(TexCoords[(i * 2) + 1]);
-	}
-
-	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
+	GenerateVertexAttributes();
 
 	// Vertex Buffer
 	glGenBuffers(1, &VertexBufferID);
@@ -101,9 +63,6 @@ void Display::InitGraphics(int scale)
 		GL_FLOAT, 
 		textureData.data());
 
-	/*glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);*/
-
 	// position attribute
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -127,21 +86,7 @@ void Display::DrawGraphics()
 
 	// Generate Vertex Attributes
 	// TODO: make this its own function, it's currently duplicated here and in InitGraphics
-	int numVertices = 4;// SCREEN_HEIGHT* SCREEN_WIDTH;
-	std::vector<float> vertexAttributes;
-	for (int i = 0; i < numVertices; i++)
-	{
-		int iPos = i * 3;
-		vertexAttributes.push_back(Positions[iPos + 0]);
-		vertexAttributes.push_back(Positions[iPos + 1]);
-		vertexAttributes.push_back(Positions[iPos + 2]);
-		vertexAttributes.push_back(VertexColors[i].r);
-		vertexAttributes.push_back(VertexColors[i].g);
-		vertexAttributes.push_back(VertexColors[i].b);
-		vertexAttributes.push_back(TexCoords[(i * 2)]);
-		vertexAttributes.push_back(TexCoords[(i * 2) + 1]);
-	}
-	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
+	GenerateVertexAttributes();
 
 	Shader.Use();
 
@@ -169,13 +114,33 @@ void Display::DrawGraphics()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IndexBufferID);
 	glBindTexture(GL_TEXTURE_2D, TextureID);
 	//glBindVertexArray(VertexArrayID);
-	glDrawElements(GL_TRIANGLES, sizeof(Indices) / sizeof(Indices[0]), GL_UNSIGNED_SHORT, (void*)0);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (void*)0);
+}
+
+void Display::GenerateVertexAttributes()
+{
+	int numVertices = 4;// SCREEN_HEIGHT* SCREEN_WIDTH;
+	std::vector<float> vertexAttributes(numVertices * 8, 0.0f);
+	for (int i = 0; i < numVertices; i++)
+	{
+		int iPos = i * 3;
+		vertexAttributes[(i * 8) + 0] = Positions[iPos + 0];
+		vertexAttributes[(i * 8) + 1] = Positions[iPos + 1];
+		vertexAttributes[(i * 8) + 2] = Positions[iPos + 2];
+		vertexAttributes[(i * 8) + 3] = VertexColors[i].r;
+		vertexAttributes[(i * 8) + 4] = VertexColors[i].g;
+		vertexAttributes[(i * 8) + 5] = VertexColors[i].b;
+		vertexAttributes[(i * 8) + 6] = TexCoords[(i * 2)];
+		vertexAttributes[(i * 8) + 7] = TexCoords[(i * 2) + 1];
+	}
+	std::copy(vertexAttributes.begin(), vertexAttributes.end(), Vertices);
 }
 
 std::vector<float> Display::GetTextureData(Color* colors)
 {
-	std::vector<float> data(SCREEN_WIDTH * SCREEN_HEIGHT * 3, 1);
-	for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT * 3; i += 3)
+	int numColorIndices = SCREEN_WIDTH * SCREEN_HEIGHT * 3;
+	std::vector<float> data(numColorIndices, 1);
+	for (int i = 0; i < numColorIndices; i += 3)
 	{
 		data[i + 0] = colors[i / 3].r;
 		data[i + 1] = colors[i / 3].g;
@@ -256,7 +221,7 @@ void Display::Cleanup()
 {
 	//delete[] Positions;
 	//delete[] VertexColors;
-	//delete[] PixelColors;
+	delete[] PixelColors;
 	//delete[] Vertices;
 	//delete[] Indices;
 }
@@ -273,6 +238,10 @@ void Display::DrawNextPixel(u8* memory)
 
 	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
 	{
+		u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800;
+		TileMap tileMap = TileMap(tileMapAddress, memory);
+		DrawTileMap(&tileMap);
+
 		DrawGraphics();
 		Window->SwapBuffers();
 		CurrentPixelY = 0;
@@ -280,20 +249,18 @@ void Display::DrawNextPixel(u8* memory)
 
 	// Get Pixel Color from Tile
 	
-	u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800;
-	////TileMap tileMap = TileMap(tileMapAddress, memory);
-
-	u8 tileX = CurrentPixelX / 8;
-	u8 tileY = CurrentPixelY / 8;
-	u16 tileIndex = tileY * 32 + tileX;
-	u8 pixelX = CurrentPixelX % (SCREEN_WIDTH / 8);
-	u8 pixelY = CurrentPixelY % (SCREEN_HEIGHT / 8);
-	u8 pixelIndex = pixelY * 8 + pixelX;
-	u8 colorIndex = memory[tileMapAddress + tileIndex + pixelIndex];
-	Color color = COLORS[colorIndex];
-
-	if (CurrentPixelY < SCREEN_HEIGHT)
-		DrawPixel(CurrentPixelX, CurrentPixelY, color);
+	
+	// TODO: the glitchiness is coming from this block of code, I think
+	//u8 tileX = CurrentPixelX / 8;
+	//u8 tileY = CurrentPixelY / 8;
+	//u16 tileIndex = tileY * 32 + tileX;
+	//u8 pixelX = CurrentPixelX % (SCREEN_WIDTH / 8);
+	//u8 pixelY = CurrentPixelY % (SCREEN_HEIGHT / 8);
+	//u8 pixelIndex = pixelY * 8 + pixelX;
+	//u8 colorIndex = memory[tileMapAddress + tileIndex + pixelIndex];
+	//Color color = COLORS[colorIndex]; //TODO issue is with colorIndex, I think it takes the whole byte instead of just the portion of it
+	//if (CurrentPixelY < SCREEN_HEIGHT)
+	//	DrawPixel(CurrentPixelX, CurrentPixelY, color);
 }
 
 u8 Display::GetCurrentPixelX()
@@ -315,6 +282,18 @@ void Display::DrawTile(Tile tile, u8 xPos, u8 yPos)
 			int colorIndex = (yPos + (7 - y)) * SCREEN_WIDTH + (xPos + x);
 			int pixelIndex = y * 8 + x;
 			PixelColors[colorIndex] = COLORS[tile.Pixels[pixelIndex]];
+		}
+	}
+}
+
+void Display::DrawTileMap(TileMap* tileMap)
+{
+	for (int x = 0; x < SCREEN_WIDTH; x += 8)
+	{
+		for (int y = 0; y < SCREEN_HEIGHT; y += 8)
+		{
+			int tileIndex = (y / 8) * 32 + (x / 8);
+			DrawTile((tileMap->Tiles)[tileIndex], x, SCREEN_HEIGHT - y - 8);
 		}
 	}
 }

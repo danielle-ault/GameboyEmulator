@@ -36,7 +36,7 @@ void RunTest();
 enum DebugViewMode { ViewCPU, ViewRAM };
 enum DebugViewMode DebugViewMode = ViewRAM;
 
-int Scale = 2;
+int Scale = 3;
 
 DMG* CPU;
 
@@ -213,9 +213,10 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 			CPU->DisplayRAMInfo();
 			break;
 		case GLFW_KEY_PAGE_UP:
-			CPU->RAMDisplayStartAddress -= CPU->RAMDisplayBytesPerLine * 0x100;
-			if (CPU->RAMDisplayStartAddress < 0)
+			if (CPU->RAMDisplayStartAddress < CPU->RAMDisplayBytesPerLine * 0x100)
 				CPU->RAMDisplayStartAddress = 0;
+			else
+				CPU->RAMDisplayStartAddress -= CPU->RAMDisplayBytesPerLine * 0x100;
 			CPU->DisplayRAMInfo();
 			break;
 		}
