@@ -87,6 +87,20 @@ public:
 
 	class Window* Window;
 
+	Tile* TileBank1[128] = { NULL };// new Tile * [128];
+	Tile* TileBank2[128] = { NULL };// new Tile * [128];
+	Tile* TileBank3[128] = { NULL };// new Tile* [128];
+	Tile** TileBanks[3] = { TileBank1, TileBank2, TileBank3 };
+	u8 CurrentTileBank = 2; // TODO: this is not how the gameboy handles it at all
+
+	TileMap* TileMap1 = NULL;
+	TileMap* TileMap2 = NULL;
+	TileMap** TileMaps = new TileMap * [2];
+	u8 CurrentTileMap = 0; // TODO: this is not how the gameboy handles it, I think
+
+	Display() {}
+	Display(u8* memory);
+
 	// Graphics Member Functions
 	void InitGraphics(int scale);
 	void DrawGraphics();
@@ -101,8 +115,8 @@ public:
 	u8 GetCurrentPixelX();
 	u8 GetCurrentPixelY();
 
-	void DrawTile(Tile tile, u8 x, u8 y);
-	void DrawTileMap(TileMap* tileMap);
+	void DrawTile(Tile* tile, u8 x, u8 y);
+	void DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY);
 
 //private:
 	u8 CurrentPixelX = 0;

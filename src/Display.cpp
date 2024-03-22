@@ -18,6 +18,68 @@ Color Display::COLOR_3 = Color(15, 56, 15);
 //Color Display::COLORS[] = { COLOR_3, COLOR_2, COLOR_1, COLOR_0 };
 Color Display::COLORS[] = { COLOR_0, COLOR_1, COLOR_2, COLOR_3 };
 
+Display::Display(u8* memory)
+{
+	//u16 tileDataStartAddress = 0x8000;
+	//int numTileBanks = sizeof(TileBanks) / sizeof(TileBanks[0]);
+	//int numTilesPerBank = 128;
+	//for (int tileBankIndex = 0; tileBankIndex < numTileBanks; tileBankIndex++)
+	//{
+	//	int tileBankOffset = 0x800 * tileBankIndex;
+	//	for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
+	//	{
+	//		int tileOffset = tileIndex * 16;
+	//		u16 tileAddress = tileDataStartAddress + tileBankOffset + tileOffset;
+	//		TileBanks[tileBankIndex][tileIndex] = new Tile(memory, tileAddress);
+	//		//tileDataAddress += 16;
+	//	}
+	//}
+
+	TileBanks[0] = TileBank1;
+	TileBanks[1] = TileBank2;
+	TileBanks[2] = TileBank3;
+
+	
+	//for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
+	//{
+	//	int tileOffset = tileIndex * 16;
+	//	TileBank1[tileIndex] = new Tile(memory, tileDataAddress + tileOffset);
+	//	tileDataAddress += 16;
+	//}
+
+	//tileDataAddress = 0x8800;
+	//for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
+	//{
+	//	int tileOffset = tileIndex * 16;
+	//	TileBank2[tileIndex] = new Tile(memory, tileDataAddress + tileOffset);
+	//	tileDataAddress += 16;
+	//}
+
+	//tileDataAddress = 0x9000;
+	//for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
+	//{
+	//	int tileOffset = tileIndex * 16;
+	//	TileBank3[tileIndex] = new Tile(memory, tileDataAddress + tileOffset);
+	//	tileDataAddress += 16;
+	//}
+
+
+	//u16 tileMapDataAddress = 0x9800;
+	//int numTileMaps = sizeof(TileMaps) / sizeof(TileMaps[0]);
+	//for (int tileMapIndex = 0; tileMapIndex < numTileMaps; tileMapIndex++)
+	//{
+	//	TileMaps[tileMapIndex] = new TileMap(tileMapDataAddress, memory);
+	//	tileMapDataAddress += 0x400;
+	//}
+
+	TileMap1 = new TileMap(0x9800, memory, TileBank3, TileBank2); // TODO swap which tilebank is used based on control register
+	TileMap2 = new TileMap(0x9C00, memory, TileBank3, TileBank2); // TODO swap which tilebank is used based on control register
+	TileMaps[0] = TileMap1;
+	TileMaps[1] = TileMap2;
+
+	//InitGraphics(scale);
+}
+
 void Display::InitGraphics(int scale)
 {
 	PixelColors = new Color[SCREEN_WIDTH * SCREEN_HEIGHT];
@@ -224,7 +286,7 @@ void Display::DrawTestTiles()
 	{
 		for (int y = 0; y < SCREEN_HEIGHT; y += 8)
 		{
-			(x / 8 + y / 8) % 2 == 0 ? DrawTile(tileGameboy, x, y) : DrawTile(tile2, x, y);
+			(x / 8 + y / 8) % 2 == 0 ? DrawTile(&tileGameboy, x, y) : DrawTile(&tile2, x, y);
 		}
 	}
 }
@@ -250,9 +312,9 @@ void Display::DrawNextPixel(u8* memory)
 
 	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
 	{
-		u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800;
-		TileMap tileMap = TileMap(tileMapAddress, memory);
-		DrawTileMap(&tileMap);
+		u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800; 
+		TileMap tileMap = TileMap(tileMapAddress, memory, TileBank3, TileBank2);
+		DrawTileMap(&tileMap, memory[0xFF43], memory[0xFF42]);
 
 		DrawGraphics();
 		Window->SwapBuffers();
@@ -262,14 +324,25 @@ void Display::DrawNextPixel(u8* memory)
 	// Get Pixel Color from Tile
 	
 	
-	// TODO: the glitchiness is coming from this block of code, I think
+	//// TODO: the glitchiness is coming from this block of code, I think
+	//u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800;
 	//u8 tileX = CurrentPixelX / 8;
 	//u8 tileY = CurrentPixelY / 8;
-	//u16 tileIndex = tileY * 32 + tileX;
-	//u8 pixelX = CurrentPixelX % (SCREEN_WIDTH / 8);
-	//u8 pixelY = CurrentPixelY % (SCREEN_HEIGHT / 8);
-	//u8 pixelIndex = pixelY * 8 + pixelX;
-	//u8 colorIndex = memory[tileMapAddress + tileIndex + pixelIndex];
+	//u16 tileOffset = tileY * 32 + tileX;
+	//u8 tilePixelX = CurrentPixelX % 8;// (SCREEN_WIDTH / 8);
+	//u8 tilePixelY = CurrentPixelY % 8;// (SCREEN_HEIGHT / 8);
+	//u8 tilePixelOffset = tilePixelY * 8 + tilePixelX;
+	//u8 tilePixelByteOffset = tilePixelOffset / (8 * (8 / 2));
+	//u8 colorByte1 = memory[tileMapAddress + tileOffset + tilePixelByteOffset];
+	//u8 colorByte2 = memory[tileMapAddress + tileOffset + tilePixelByteOffset + 1];
+	//u8 colorByteIndex = tilePixelOffset % 8;
+	//bool colorBit1 = GETBIT(colorByte1, colorByteIndex);
+	//bool colorBit2 = GETBIT(colorByte2, colorByteIndex);
+	//u8 colorIndex = 0x00;
+	//SETBITVALUE(colorIndex, 0, colorBit1);
+	//SETBITVALUE(colorIndex, 1, colorBit2);
+	////u8 colorIndex = (colorByte1 >> ((pixelByteIndex) / 2)) & 0b0011;
+	////colorIndex = 0b11 - colorIndex;
 	//Color color = COLORS[colorIndex]; //TODO issue is with colorIndex, I think it takes the whole byte instead of just the portion of it
 	//if (CurrentPixelY < SCREEN_HEIGHT)
 	//	DrawPixel(CurrentPixelX, CurrentPixelY, color);
@@ -285,7 +358,7 @@ u8 Display::GetCurrentPixelY()
 	return CurrentPixelY;
 }
 
-void Display::DrawTile(Tile tile, u8 xPos, u8 yPos)
+void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 {
 	for (int x = 0; x < 8; x++)
 	{
@@ -293,18 +366,19 @@ void Display::DrawTile(Tile tile, u8 xPos, u8 yPos)
 		{
 			int colorIndex = (yPos + (7 - y)) * SCREEN_WIDTH + (xPos + x);
 			int pixelIndex = y * 8 + x;
-			PixelColors[colorIndex] = COLORS[tile.Pixels[pixelIndex]];
+			PixelColors[colorIndex] = COLORS[tile->Pixels[pixelIndex]];
 		}
 	}
 }
 
-void Display::DrawTileMap(TileMap* tileMap)
+void Display::DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY)
 {
+	int numTiles = 32 * 32;
 	for (int x = 0; x < SCREEN_WIDTH; x += 8)
 	{
 		for (int y = 0; y < SCREEN_HEIGHT; y += 8)
 		{
-			int tileIndex = (y / 8) * 32 + (x / 8);
+			int tileIndex = ((y) / 8) * 32 + ((x) / 8);
 			DrawTile((tileMap->Tiles)[tileIndex], x, SCREEN_HEIGHT - y - 8);
 		}
 	}

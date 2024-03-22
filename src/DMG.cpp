@@ -16,6 +16,8 @@ DMG::DMG(std::vector<u8> ROM)
 	{
 		Memory[i] = ROM[i];
 	}
+
+	Display = class Display(Memory);
 }
 
 void DMG::RunCycle()
@@ -47,6 +49,38 @@ int DMG::SetMemory(u16 address, u8 value)
 	
 	RunCycle();
 	Memory[address] = value;
+
+	// TODO in here, update tiles and tilemaps when corresponding addresses are edited
+	u16 tileBlockAddresses[4] = {0x8000, 0x8800, 0x9000};
+	for (int i = 0; i < 3; i++)
+	{
+		if (address >= tileBlockAddresses[i]  && address < tileBlockAddresses[i] + 0x800)
+		{
+			u16 addressOffset = address - tileBlockAddresses[i];
+			u16 tileOffset = addressOffset / 16;
+			u16 tileStartAddress = tileBlockAddresses[i] + tileOffset * 16;
+			//delete Display.TileBanks[i][tileOffset];
+			Tile* tile = new Tile(Memory, tileStartAddress);
+			//Display.TileBanks[i][tileOffset] = tile; // Not sure why this doesn't work
+			switch (i)
+			{
+			case 0: Display.TileBank1[tileOffset] = tile; break;
+			case 1: Display.TileBank2[tileOffset] = tile; break; 
+			case 2: Display.TileBank3[tileOffset] = tile; break;
+			}
+		}
+	}
+
+	u16 tileMapAddresses[2] = { 0x9800, 0x9C00 };
+	for (int i = 0; i < 2; i++)
+	{
+		if (address >= tileMapAddresses[i] && address < tileBlockAddresses[i] + 0x400)
+		{
+			u8 tileIndex = address - tileMapAddresses[i];
+			Display.TileMaps[i]->UpdateTile(tileIndex, value, Display.TileBank3, Display.TileBank2); // TODO swap which tilebank is used based on control register
+		}
+	}
+	
 	return 0;
 }
 

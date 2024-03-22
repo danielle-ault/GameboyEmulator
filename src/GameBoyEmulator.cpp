@@ -31,7 +31,7 @@ void ProcessNumInstructions(DMG *cpu, int numInstructions, bool updateDisplay = 
 void ResizeCallback(GLFWwindow* window, int width, int height);
 void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
-void RunTest();
+void RunTests();
 
 enum DebugViewMode { ViewCPU, ViewRAM };
 enum DebugViewMode DebugViewMode = ViewRAM;
@@ -48,9 +48,7 @@ class Window Window = class Window(Display::SCREEN_WIDTH* Scale,
 
 int main()
 {
-	RunTest();
-
-	
+	//RunTests();
 
 	std::ifstream input(filepathToROM, std::ios::binary);
 	std::vector<uint8_t> ROM(std::istreambuf_iterator<char>(input), {});
@@ -223,7 +221,7 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 	}
 }
 
-void RunTest()
+void RunTests()
 {
 	std::vector<u8> tileBytesRaw = { 0x3c, 0x7e,
 									 0x42, 0x42,

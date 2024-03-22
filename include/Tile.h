@@ -6,7 +6,7 @@
 class Tile
 {	
 public:
-	u8 Pixels[64] = { 0 };
+	u8 Pixels[64] = { 255 };
 
 	Tile() {}
 	Tile(std::vector<u8> bytes);

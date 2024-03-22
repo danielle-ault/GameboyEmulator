@@ -1,3 +1,3 @@
-rgbasm -L -o hello-world.o hello-world.asm
-rgblink -o hello-world.gb hello-world.o
-rgbfix -v -p 0xFF hello-world.gb
+rgbasm -L -o "$1.o" "$1.asm"
+rgblink -o "$1.gb" "$1.o"
+rgbfix -v -p 0xFF "$1.gb"
