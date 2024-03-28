@@ -20,20 +20,20 @@ Color Display::COLORS[] = { COLOR_0, COLOR_1, COLOR_2, COLOR_3 };
 
 Display::Display(u8* memory)
 {
-	//u16 tileDataStartAddress = 0x8000;
-	//int numTileBanks = sizeof(TileBanks) / sizeof(TileBanks[0]);
-	//int numTilesPerBank = 128;
-	//for (int tileBankIndex = 0; tileBankIndex < numTileBanks; tileBankIndex++)
-	//{
-	//	int tileBankOffset = 0x800 * tileBankIndex;
-	//	for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
-	//	{
-	//		int tileOffset = tileIndex * 16;
-	//		u16 tileAddress = tileDataStartAddress + tileBankOffset + tileOffset;
-	//		TileBanks[tileBankIndex][tileIndex] = new Tile(memory, tileAddress);
-	//		//tileDataAddress += 16;
-	//	}
-	//}
+	u16 tileDataStartAddress = 0x8000;
+	int numTileBanks = sizeof(TileBanks) / sizeof(TileBanks[0]);
+	int numTilesPerBank = 128;
+	for (int tileBankIndex = 0; tileBankIndex < numTileBanks; tileBankIndex++)
+	{
+		int tileBankOffset = 0x800 * tileBankIndex;
+		for (int tileIndex = 0; tileIndex < numTilesPerBank; tileIndex++)
+		{
+			int tileOffset = tileIndex * 16;
+			u16 tileAddress = tileDataStartAddress + tileBankOffset + tileOffset;
+			TileBanks[tileBankIndex][tileIndex] = new Tile(memory, tileAddress);
+			//tileDataAddress += 16;
+		}
+	}
 
 	TileBanks[0] = TileBank1;
 	TileBanks[1] = TileBank2;
@@ -312,9 +312,9 @@ void Display::DrawNextPixel(u8* memory)
 
 	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
 	{
-		u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800; 
-		TileMap tileMap = TileMap(tileMapAddress, memory, TileBank3, TileBank2);
-		DrawTileMap(&tileMap, memory[0xFF43], memory[0xFF42]);
+		//u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800; 
+		//TileMap tileMap = TileMap(tileMapAddress, memory, TileBank3, TileBank2);
+		DrawTileMap(TileMaps[CurrentTileMap], memory[0xFF43], memory[0xFF42]);
 
 		DrawGraphics();
 		Window->SwapBuffers();
@@ -366,7 +366,8 @@ void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 		{
 			int colorIndex = (yPos + (7 - y)) * SCREEN_WIDTH + (xPos + x);
 			int pixelIndex = y * 8 + x;
-			PixelColors[colorIndex] = COLORS[tile->Pixels[pixelIndex]];
+			if (colorIndex >= 0 && colorIndex < SCREEN_WIDTH * SCREEN_HEIGHT)
+				PixelColors[colorIndex] = COLORS[tile->Pixels[pixelIndex]];
 		}
 	}
 }
@@ -378,8 +379,8 @@ void Display::DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY)
 	{
 		for (int y = 0; y < SCREEN_HEIGHT; y += 8)
 		{
-			int tileIndex = ((y) / 8) * 32 + ((x) / 8);
-			DrawTile((tileMap->Tiles)[tileIndex], x, SCREEN_HEIGHT - y - 8);
+			int tileIndex = (y / 8) * 32 + (x / 8);
+			DrawTile(tileMap->Tiles[tileIndex], x + scrollX, SCREEN_HEIGHT - y - 8 + scrollY);
 		}
 	}
 }

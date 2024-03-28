@@ -1,7 +1,10 @@
 #include <iostream>
 #include <sstream>
+
 #include "DMG.h"
 #include "Utils.h"
+
+
 
 DMG::DMG()
 {
@@ -10,22 +13,36 @@ DMG::DMG()
 DMG::DMG(std::vector<u8> ROM)
 {
 	this->ROM = ROM;
-	ProgramCounter = 0x100;
 
 	for (int i = 0; i < 0x8000; i++)
 	{
 		Memory[i] = ROM[i];
 	}
 
+	Registers.A = 0x01;
+	Registers.F = 0x00;
+	Registers.B = 0xFF;
+	Registers.C = 0x13;
+	Registers.D = 0x00;
+	Registers.E = 0xD8;
+	Registers.H = 0x01;
+	Registers.L = 0x4D;
+	ProgramCounter = 0x0100;
+	StackPointer = 0xFFFE;
+
+	Memory[0xFF40] = 0x91;
+
 	Display = class Display(Memory);
 }
 
 void DMG::RunCycle()
 {
-	for (int i = 0; i < 4; i++)
-		Display.DrawNextPixel(Memory);
+	if (GETBIT(Memory[0xFF40], 7))
+		for (int i = 0; i < 4; i++)
+			Display.DrawNextPixel(Memory);
 
-	Memory[REGISTER_LY] = Display.GetCurrentPixelY();
+	u8 scanline = Display.GetCurrentPixelY();
+	Memory[REGISTER_LY] = scanline;
 }
 
 void DMG::RunCycles(int numCycles)
@@ -59,7 +76,7 @@ int DMG::SetMemory(u16 address, u8 value)
 			u16 addressOffset = address - tileBlockAddresses[i];
 			u16 tileOffset = addressOffset / 16;
 			u16 tileStartAddress = tileBlockAddresses[i] + tileOffset * 16;
-			//delete Display.TileBanks[i][tileOffset];
+			//delete Display.TileBanks[i][tileOffset]; // Not sure why this causes errors, i guess I don't understand memory allocation as well as I thought I did
 			Tile* tile = new Tile(Memory, tileStartAddress);
 			//Display.TileBanks[i][tileOffset] = tile; // Not sure why this doesn't work
 			switch (i)
@@ -74,9 +91,9 @@ int DMG::SetMemory(u16 address, u8 value)
 	u16 tileMapAddresses[2] = { 0x9800, 0x9C00 };
 	for (int i = 0; i < 2; i++)
 	{
-		if (address >= tileMapAddresses[i] && address < tileBlockAddresses[i] + 0x400)
+		if (address >= tileMapAddresses[i] && address < tileMapAddresses[i] + 0x400)
 		{
-			u8 tileIndex = address - tileMapAddresses[i];
+			u16 tileIndex = address - tileMapAddresses[i];
 			Display.TileMaps[i]->UpdateTile(tileIndex, value, Display.TileBank3, Display.TileBank2); // TODO swap which tilebank is used based on control register
 		}
 	}
@@ -412,9 +429,9 @@ bool DMG::GetFlag(Flag flag)
 	u8 result = (int)flag & Registers.F;
 	switch (result)
 	{
-		case (int)Flag::Z: return result >> 7;
-		case (int)Flag::N: return result >> 6;
-		case (int)Flag::H: return result  >> 5;
+		case (int)Flag::Z:  return result >> 7;
+		case (int)Flag::N:  return result >> 6;
+		case (int)Flag::H:  return result >> 5;
 		case (int)Flag::CY: return result >> 4;
 	}
 	return false;
@@ -532,6 +549,7 @@ void DMG::ProcessNextInstruction(bool updateDisplay)
 		case RET_CC:     ReturnIfCondition(instruction); break;
 		case RST_T:      RestartCallToAddress(instruction); break;
 
+
 		default:
 			ProgramCounter++;
 			//DisplayInstructionString(CurrentInstructionMasked);
@@ -574,7 +592,7 @@ void DMG::RotateShiftInstruction()
 	}
 }
 
-void DMG::DisplayInstructionHistory(short consoleWidth, short consoleHeight)
+void DMG::DisplayInstructionHistory(short consoleWidth, short consoleHeight, int firstVisibleInstruction)
 {
 	int topPadding = 3;
 	Utils::DrawHorizontalLineOnConsole(0, 0, CONSOLE_INSTRUCTION_TOTAL_WIDTH - 1);
@@ -582,18 +600,21 @@ void DMG::DisplayInstructionHistory(short consoleWidth, short consoleHeight)
 	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_WIDTH, 1, topPadding - 2);
 	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_WIDTH, topPadding, consoleHeight - topPadding);
 
-	if (InstructionHistory.size() > 0)
-		DisplayInstructionInfoString(0, 1, GetLastInstruction());
+	if (InstructionHistory.size() > firstVisibleInstruction)
+	{
+		int index = InstructionHistory.size() - firstVisibleInstruction - 1;
+		DisplayInstructionInfoString(0, 1, index, InstructionHistory[index]);
+	}
 
 	for (int i = 0; i < consoleHeight - topPadding; i++)
 	{
-		int index = InstructionHistory.size() - 2 - i;
+		int index = InstructionHistory.size() - 2 - i - firstVisibleInstruction;
 		if (index >= 0)
-			DisplayInstructionInfoString(0, i + topPadding, InstructionHistory[index]);
+			DisplayInstructionInfoString(0, i + topPadding, index, InstructionHistory[index]);
 	}
 }
 
-void DMG::DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo)
+void DMG::DisplayInstructionInfoString(int x, int y, int index, InstructionInfo instructionInfo)
 {
 	u8 instruction = instructionInfo.Instruction;
 	u8 maskedInstruction = GetMaskedInstruction(instruction);
@@ -606,8 +627,9 @@ void DMG::DisplayInstructionInfoString(int x, int y, InstructionInfo instruction
 	}
 
 	Utils::gotoxy(x, y);
+	std::cout << std::dec << index << " - ";
 	std::cout << Utils::GetHexString(instructionInfo.Address) << ": ";
-	std::cout << Utils::GetBinary(instructionInfo.Instruction) << " 0x";
+	//std::cout << Utils::GetBinary(instructionInfo.Instruction) << " 0x";
 	std::cout << Utils::GetHexString(instructionInfo.Instruction) << " ";
 	std::cout << instructionString;
 
@@ -615,7 +637,7 @@ void DMG::DisplayInstructionInfoString(int x, int y, InstructionInfo instruction
 	std::cout << instructionInfo.ExtraInfo;
 }
 
-void DMG::DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight)
+void DMG::DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight, int firstVisibleMemoryOperation)
 {
 	int topPadding = 3;
 	int startX = consoleWidth - MEMORY_OPERATION_WIDTH;
@@ -626,11 +648,14 @@ void DMG::DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight)
 	Utils::DrawVerticalLineOnConsole(startX, topPadding, consoleHeight - topPadding);
 
 	if (MemoryOperationHistory.size() > 0)
-		DisplayMemoryOperationString(startX + 2, 1, GetLastMemoryOperation());
+	{
+		int index = MemoryOperationHistory.size() - firstVisibleMemoryOperation - 1;
+		DisplayMemoryOperationString(startX + 2, 1, MemoryOperationHistory[index]);
+	}
 
 	for (int i = 0; i < consoleHeight - topPadding; i++)
 	{
-		int index = MemoryOperationHistory.size() - 2 - i;
+		int index = MemoryOperationHistory.size() - 2 - i - firstVisibleMemoryOperation;
 		if (index >= 0)
 			DisplayMemoryOperationString(startX + 2, i + topPadding, MemoryOperationHistory[index]);
 	}
@@ -646,12 +671,17 @@ void DMG::DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info)
 
 void DMG::DisplayStateInfo()
 {
+	DisplayStateInfo(0, 0);
+}
+
+void DMG::DisplayStateInfo(int firstVisibleInstruction, int firstVisibleMemoryOperation)
+{
 	u8 consoleWidth = Utils::GetConsoleWidth();
 	u8 consoleHeight = Utils::GetConsoleHeight();
 
 	Utils::ClearConsole();
-	DisplayInstructionHistory(consoleWidth, consoleHeight);
-	DisplayMemoryOperationHistory(consoleWidth, consoleHeight);
+	DisplayInstructionHistory(consoleWidth, consoleHeight, firstVisibleInstruction);
+	DisplayMemoryOperationHistory(consoleWidth, consoleHeight, firstVisibleMemoryOperation);
 	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_TOTAL_WIDTH, 0, Utils::GetConsoleHeight());
 	DisplayAllRegisters(CONSOLE_INSTRUCTION_TOTAL_WIDTH + 2, 0);
 }
@@ -1198,7 +1228,17 @@ void DMG::OperationFromRegister(Operation operation, u8 instruction)
 		GetRegisterValue(Register::A), 
 		GetRegisterValue(registerToLoad)
 	);
-	SetRegisterValue(Register::A, result);
+
+	switch (operation)
+	{
+	case Operation::ADD:
+	case Operation::ADC:
+	case Operation::SUB:
+	case Operation::SBC:
+	case Operation::AND:
+		SetRegisterValue(Register::A, result);
+		break;
+	}
 
 	ProgramCounter++;
 }
@@ -1206,7 +1246,17 @@ void DMG::OperationFromRegister(Operation operation, u8 instruction)
 void DMG::OperationFromImmediate(Operation operation, u8 instruction)
 {
 	u8 result = PerformOperation(operation, GetRegisterValue(Register::A), GetNextImmediate());
-	SetRegisterValue(Register::A, result);
+
+	switch (operation)
+	{
+	case Operation::ADD:
+	case Operation::ADC:
+	case Operation::SUB:
+	case Operation::SBC:
+	case Operation::AND:
+		SetRegisterValue(Register::A, result);
+		break;
+	}
 
 	ProgramCounter++;
 }
@@ -1216,8 +1266,19 @@ void DMG::OperationFromHL(Operation operation, u8 instruction)
 	u16 address = GetRegisterPairValue(RegisterPair::HL);
 	u8 memoryValue = GetMemory(address);
 	u8 result = PerformOperation(operation, GetRegisterValue(Register::A), memoryValue);
-	if (operation != Operation::CP)
+	//if (operation != Operation::CP)
+	//	SetRegisterValue(Register::A, result);
+
+	switch (operation)
+	{
+	case Operation::ADD:
+	case Operation::ADC:
+	case Operation::SUB:
+	case Operation::SBC:
+	case Operation::AND:
 		SetRegisterValue(Register::A, result);
+		break;
+	}
 
 	ProgramCounter++;
 
@@ -1291,7 +1352,7 @@ u8 DMG::Subtract(u8 left, u8 right, bool setCarryFlag)
 	u16 result = left - right;
 	if (setCarryFlag)
 	{
-		bool carry = (0b1'0000'0000 & result) != 0;
+		bool carry = (right > left); // (0b1'0000'0000 & result) != 0;
 		SetFlag(Flag::CY, carry);
 	}
 
@@ -1375,6 +1436,8 @@ u8 DMG::Compare(u8 left, u8 right)
 
 void DMG::IncrementRegister(u8 instruction)
 {
+	//SimulationPaused = true; 
+
 	Register registerToLoad = (Register)((instruction & 0b00'111'000) >> 3);
 	u8 result = Add(GetRegisterValue(registerToLoad), 1, false);
 	SetRegisterValue(registerToLoad, result);
@@ -1688,13 +1751,13 @@ void DMG::ResetBitInHL(u8 instruction)
 
 void DMG::JumpToImmediate()
 {
-	u16 address = GetNextImmediateAddress();
+	u16 immediate = GetNextImmediateAddress();
 	RunCycle();
-	ProgramCounter = address;
+	ProgramCounter = immediate;
 
 	if (!SkipDisplayInfo)
 	{
-		std::string infoString = "nn=" + Utils::GetHexString(address);
+		std::string infoString = "nn=" + Utils::GetHexString(immediate);
 		InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
 	}
 }
@@ -1725,7 +1788,13 @@ void DMG::JumpToOffset()
 {
 	i8 offset = GetNextImmediate();
 	RunCycle();
-	ProgramCounter += offset + 2;
+	ProgramCounter += offset + 1; // TODO: documentation says to add 2, but it actually works if I only add 1
+
+	if (!SkipDisplayInfo)
+	{
+		std::string infoString = "e=" + std::to_string(offset);
+		InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+	}
 }
 
 void DMG::JumpToOffsetIfTrue(u8 instruction)
@@ -1751,6 +1820,7 @@ void DMG::JumpToHL()
 
 void DMG::CallImmediate()
 {
+	//ProgramCounter += 3; // TODO: this line makes it behave like the documentation says, even though it doesn't mention this step in the instruction steps
 	SetMemory(StackPointer - 1, (ProgramCounter & 0xFF00) >> 8);
 	SetMemory(StackPointer - 2, ProgramCounter & 0x00FF);
 	ProgramCounter = GetNextImmediateAddress();
@@ -1770,11 +1840,15 @@ void DMG::CallImmediateIfCondition(u8 instruction)
 
 void DMG::ReturnFromSubroutine()
 {
+	//SimulationPaused = true;
+
 	u8 low = GetMemory(StackPointer);
 	u8 high = GetMemory(StackPointer + 1);
 	ProgramCounter = (high << 8) | low;
 	RunCycle();
 	StackPointer = StackPointer + 2;
+
+	ProgramCounter += 3; // TODO: don't think this is quite right, need to investigate the timing of adding 1 to ProgramCounter. Maybe need to put it before the bulk of work in instructions? at least in call instructions
 }
 
 void DMG::ReturnFromInterrupt()

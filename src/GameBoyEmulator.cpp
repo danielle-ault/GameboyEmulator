@@ -14,37 +14,12 @@
 //#include <glad/glad.h>
 //#include <GLFW/glfw3.h>
 
+#include "GameBoyEmulator.h"
 #include "Window.h"
 #include "DMG.h"
 #include "Utils.h"
 #include "Tile.h"
 
-std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world.gb";
-//std::string filepathToROM = "D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb";
-//std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/test instructions/test_instructions.gb";
-
-void TestFlagInputOutput(DMG cpu);
-void ConsoleCursorToXY(short x, short y);
-void clear_screen(char fill = ' ');
-void ProcessNumInstructions(DMG *cpu, int numInstructions, bool updateDisplay = true);
-
-void ResizeCallback(GLFWwindow* window, int width, int height);
-void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-
-void RunTests();
-
-enum DebugViewMode { ViewCPU, ViewRAM };
-enum DebugViewMode DebugViewMode = ViewRAM;
-
-int Scale = 3;
-
-DMG* CPU;
-
-class Window Window = class Window(Display::SCREEN_WIDTH* Scale,
-	                               Display::SCREEN_HEIGHT* Scale,
-	                               "Gameboy Emulator",
-	                               ResizeCallback,
-	                               KeypressCallback);
 
 int main()
 {
@@ -55,6 +30,7 @@ int main()
 
 	DMG cpu_temp = DMG(ROM);
 	CPU = &cpu_temp;
+	CPU->RAMDisplayStartAddress = RAMDisplayStartAddress;
 	CPU->ProgramCounter = 0x100;
 
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -72,24 +48,28 @@ int main()
 	size_t i = 0;
 	while (!Window.ShouldClose())
 	{
+		//SimulationPaused = CPU->SimulationPaused;
 		//auto start = std::chrono::system_clock::now();
 
-		CPU->ProcessNextInstruction(false);
-		bool updateDisplay = i % 1000000 == 0;
-		if (updateDisplay)
+		if (!CPU->SimulationPaused)
 		{
-			switch (DebugViewMode)
+			CPU->ProcessNextInstruction(false);
+			bool updateDisplay = i % 100000 == 0;
+			if (updateDisplay)
 			{
-			case DebugViewMode::ViewCPU:
-				CPU->DisplayStateInfo();
-				break;
-			case DebugViewMode::ViewRAM:
-				CPU->DisplayRAMInfo();
-				break;
+				switch (DebugViewMode)
+				{
+				case DebugViewMode::ViewCPU:
+					CPU->DisplayStateInfo();
+					break;
+				case DebugViewMode::ViewRAM:
+					CPU->DisplayRAMInfo();
+					break;
+				}
 			}
-
+			i++;
 		}
-		i++;
+		
 
 		//CPU->Display.DrawGraphics();
 		//window.SwapBuffersAndPollEvents();
@@ -158,7 +138,23 @@ void ProcessNumInstructions(DMG *cpu, int numInstructions, bool updateDisplay)
 	for (int i = 0; i < numInstructions; i++)
 		cpu->ProcessNextInstruction();
 
+	FirstVisibleInstruction = 0;
+	FirstVisibleMemoryOperation = 0;
 	cpu->DisplayStateInfo();
+}
+
+void GoUpNumInstructions(int numInstructions)
+{
+	FirstVisibleInstruction -= numInstructions;
+	if (FirstVisibleInstruction < 0)
+		FirstVisibleInstruction = 0;
+	CPU->DisplayStateInfo(FirstVisibleInstruction, FirstVisibleMemoryOperation);
+}
+
+void GoDownNumInstructions(int numInstructions)
+{
+	FirstVisibleInstruction += numInstructions;
+	CPU->DisplayStateInfo(FirstVisibleInstruction, FirstVisibleMemoryOperation);
 }
 
 void ResizeCallback(GLFWwindow* window, int width, int height)
@@ -172,13 +168,15 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 	{
 		switch (key)
 		{
+		case GLFW_KEY_PAUSE: CPU->SimulationPaused = !CPU->SimulationPaused; break;
 		case GLFW_KEY_ENTER: glfwSetWindowShouldClose(window, true); break;
 		case GLFW_KEY_T:
 			CPU->Display.DrawTestScreen();
 			CPU->Display.DrawGraphics();
 			Window.SwapBuffers();
 			break;
-
+		case GLFW_KEY_R: DebugViewMode = ViewRAM; CPU->DisplayRAMInfo(); break;
+		case GLFW_KEY_C: DebugViewMode = ViewCPU; CPU->DisplayStateInfo(); break;
 		}
 	}
 
@@ -187,7 +185,21 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 		switch (key)
 		{
 		case GLFW_KEY_SPACE: ProcessNumInstructions(CPU, 1); break;
-		case GLFW_KEY_S: ProcessNumInstructions(CPU, 20); break;
+		case GLFW_KEY_S: ProcessNumInstructions(CPU, 200); break;
+		case GLFW_KEY_DOWN: GoDownNumInstructions(1); break;
+		case GLFW_KEY_UP: GoUpNumInstructions(1); break;
+		case GLFW_KEY_PAGE_DOWN: GoDownNumInstructions(28); break;
+		case GLFW_KEY_PAGE_UP: GoUpNumInstructions(28); break;
+		case GLFW_KEY_RIGHT:
+			FirstVisibleMemoryOperation++;
+			CPU->DisplayStateInfo(FirstVisibleInstruction, FirstVisibleMemoryOperation);
+			break;
+		case GLFW_KEY_LEFT:
+			FirstVisibleMemoryOperation--;
+			if (FirstVisibleMemoryOperation < 0)
+				FirstVisibleMemoryOperation = 0;
+			CPU->DisplayStateInfo(FirstVisibleInstruction, FirstVisibleMemoryOperation);
+			break;
 		}
 	}
 

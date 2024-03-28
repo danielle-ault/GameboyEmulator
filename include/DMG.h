@@ -134,6 +134,8 @@ public:
 
 	const int MEMORY_OPERATION_WIDTH = 25;
 
+	bool SimulationPaused = true;
+
 	// Other devices
 	Display Display;
 
@@ -150,11 +152,11 @@ public:
 	u8 CurrentInstruction;
 	u8 CurrentInstructionMasked;
 
-	bool SkipDisplayInfo = true;
+	bool SkipDisplayInfo = false;
 	std::vector<InstructionInfo> InstructionHistory;
 	std::vector<MemoryOperationInfo> MemoryOperationHistory;
 
-	u16 RAMDisplayStartAddress = 0x8000;
+	u16 RAMDisplayStartAddress = 0;
 	u8 RAMDisplayBytesPerLine = 0x10;
 
 	DMG();
@@ -209,12 +211,13 @@ public:
 	void ProcessNextInstruction(bool updateDisplay = true);
 	void RotateShiftInstruction();
 
-	void DisplayInstructionHistory(short consoleWidth, short consoleHeight);
-	void DisplayInstructionInfoString(int x, int y, InstructionInfo instructionInfo);
-	void DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight);
+	void DisplayInstructionHistory(short consoleWidth, short consoleHeight, int firstVisibleInstruction);
+	void DisplayInstructionInfoString(int x, int y, int index, InstructionInfo instructionInfo);
+	void DisplayMemoryOperationHistory(short consoleWidth, short consoleHeight, int firstVisibleMemoryOperation);
 	void DisplayMemoryOperationString(int x, int y, MemoryOperationInfo info);
 	
 	void DisplayStateInfo();
+	void DisplayStateInfo(int firstVisibleInstruction, int firstVisibleMemoryOperation);
 	void DisplayValueGeneric(std::string name, u16 value, short x, short y);
 	void DisplayRegister(Register reg, short x, short y);
 	void DisplayFlags(int x, int y);

@@ -163,6 +163,7 @@
     <ClInclude Include="include\Display.h" />
     <ClInclude Include="include\DMG.h" />
     <ClInclude Include="include\Color.h" />
+    <ClInclude Include="include\GameBoyEmulator.h" />
     <ClInclude Include="include\Shader.h" />
     <ClInclude Include="include\TileMap.h" />
     <ClInclude Include="include\Window.h" />
