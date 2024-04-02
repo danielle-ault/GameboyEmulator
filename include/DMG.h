@@ -134,7 +134,7 @@ public:
 
 	const int MEMORY_OPERATION_WIDTH = 25;
 
-	bool SimulationPaused = true;
+	bool SimulationPaused = false;
 
 	// Other devices
 	Display Display;

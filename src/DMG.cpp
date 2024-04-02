@@ -1811,6 +1811,13 @@ void DMG::JumpToOffsetIfTrue(u8 instruction)
 	{
 		ProgramCounter += 1;
 	}
+
+	if (!SkipDisplayInfo)
+	{
+		std::string infoString = "cc=" + Utils::GetBinary((long)condition, false);
+		infoString += " e=" + std::to_string(offset);
+		InstructionHistory[InstructionHistory.size() - 1].ExtraInfo = infoString;
+	}
 }
 
 void DMG::JumpToHL()

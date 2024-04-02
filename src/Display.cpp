@@ -1,4 +1,5 @@
 #include <vector>
+#include <iostream>
 
 #include "Display.h"
 #include "Tile.h"
@@ -154,7 +155,8 @@ void Display::DrawGraphics()
 	glTexSubImage2D(
 		GL_TEXTURE_2D,
 		0, 0, 0,
-		SCREEN_WIDTH, SCREEN_HEIGHT,
+		SCREEN_WIDTH, 
+		SCREEN_HEIGHT,
 		GL_RGB,
 		GL_FLOAT,
 		(void*)textureData.data());
@@ -362,9 +364,22 @@ void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 {
 	for (int x = 0; x < 8; x++)
 	{
+		int newX = xPos + x;
+		if (newX >= SCREEN_WIDTH)
+			continue;
+
 		for (int y = 0; y < 8; y++)
 		{
-			int colorIndex = (yPos + (7 - y)) * SCREEN_WIDTH + (xPos + x);
+			int newY = yPos + (7 - y);
+			if (newY >= SCREEN_HEIGHT) 
+				continue;
+			//if (newY > 255) newY -= 255;
+			//if (newY < 0) newY += 255;
+			//if (newX > 255) newX -= 255;
+			//if (newX < 0) newX += 255;
+
+			int colorIndex = newY * SCREEN_WIDTH + newX;
+			
 			int pixelIndex = y * 8 + x;
 			if (colorIndex >= 0 && colorIndex < SCREEN_WIDTH * SCREEN_HEIGHT)
 				PixelColors[colorIndex] = COLORS[tile->Pixels[pixelIndex]];
@@ -374,13 +389,16 @@ void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 
 void Display::DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY)
 {
+	Utils::DebugPrint("x", (int)scrollX);
+	Utils::DebugPrintLine(",  y", (int)scrollY);
+
 	int numTiles = 32 * 32;
 	for (int x = 0; x < SCREEN_WIDTH; x += 8)
 	{
 		for (int y = 0; y < SCREEN_HEIGHT; y += 8)
 		{
 			int tileIndex = (y / 8) * 32 + (x / 8);
-			DrawTile(tileMap->Tiles[tileIndex], x + scrollX, SCREEN_HEIGHT - y - 8 + scrollY);
+			DrawTile(tileMap->Tiles[tileIndex], x - scrollX, SCREEN_HEIGHT - y - 8 + scrollY);
 		}
 	}
 }

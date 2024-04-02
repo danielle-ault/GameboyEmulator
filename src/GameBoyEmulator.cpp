@@ -24,6 +24,7 @@
 int main()
 {
 	//RunTests();
+	Utils::DebugViewMode = ViewConsole;
 
 	std::ifstream input(filepathToROM, std::ios::binary);
 	std::vector<uint8_t> ROM(std::istreambuf_iterator<char>(input), {});
@@ -57,7 +58,7 @@ int main()
 			bool updateDisplay = i % 100000 == 0;
 			if (updateDisplay)
 			{
-				switch (DebugViewMode)
+				switch (Utils::DebugViewMode)
 				{
 				case DebugViewMode::ViewCPU:
 					CPU->DisplayStateInfo();
@@ -168,19 +169,20 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 	{
 		switch (key)
 		{
-		case GLFW_KEY_PAUSE: CPU->SimulationPaused = !CPU->SimulationPaused; break;
+		case GLFW_KEY_P: CPU->SimulationPaused = !CPU->SimulationPaused; break;
 		case GLFW_KEY_ENTER: glfwSetWindowShouldClose(window, true); break;
 		case GLFW_KEY_T:
 			CPU->Display.DrawTestScreen();
 			CPU->Display.DrawGraphics();
 			Window.SwapBuffers();
 			break;
-		case GLFW_KEY_R: DebugViewMode = ViewRAM; CPU->DisplayRAMInfo(); break;
-		case GLFW_KEY_C: DebugViewMode = ViewCPU; CPU->DisplayStateInfo(); break;
+		case GLFW_KEY_M: SwitchMode(); break;
+		case GLFW_KEY_R: Utils::DebugViewMode = ViewRAM; CPU->DisplayRAMInfo(); break;
+		case GLFW_KEY_C: Utils::DebugViewMode = ViewCPU; CPU->DisplayStateInfo(); break;
 		}
 	}
 
-	if (action == GLFW_PRESS && DebugViewMode == DebugViewMode::ViewCPU)
+	if (action == GLFW_PRESS && Utils::DebugViewMode == DebugViewMode::ViewCPU)
 	{
 		switch (key)
 		{
@@ -203,7 +205,7 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 		}
 	}
 
-	if ((action == GLFW_PRESS || action == GLFW_REPEAT) && DebugViewMode == DebugViewMode::ViewRAM)
+	if ((action == GLFW_PRESS || action == GLFW_REPEAT) && Utils::DebugViewMode == DebugViewMode::ViewRAM)
 	{
 		switch (key)
 		{
@@ -230,6 +232,25 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 			CPU->DisplayRAMInfo();
 			break;
 		}
+	}
+}
+
+void SwitchMode()
+{
+	switch (Utils::DebugViewMode)
+	{
+	case ViewCPU: 
+		Utils::DebugViewMode = ViewRAM;
+		CPU->DisplayRAMInfo();
+		break;
+	case ViewRAM:
+		Utils::DebugViewMode = ViewConsole;
+		Utils::ClearConsole();
+		break;
+	case ViewConsole:
+		Utils::DebugViewMode = ViewCPU;
+		CPU->DisplayStateInfo();
+		break;
 	}
 }
 

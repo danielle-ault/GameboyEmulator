@@ -6,6 +6,8 @@
 #include "DMG.h"
 #include "Utils.h"
 
+DebugViewMode Utils::DebugViewMode = ViewConsole;
+
 // started from https://stackoverflow.com/questions/22746429/c-decimal-to-binary-converting
 // expanded to make output prettier
 std::string Utils::GetBinary(long number, bool padWithZeros)
@@ -151,3 +153,29 @@ void Utils::DrawVerticalLineOnConsole(int startX, int startY, int length)
 		printf("|");
 	}
 }
+
+void Utils::DebugPrint(std::string text)
+{
+	if (DebugViewMode == ViewConsole)
+		std::cout << text;
+}
+
+void Utils::DebugPrint(std::string text, int var)
+{
+	if (DebugViewMode == ViewConsole)
+		std::cout << text << ": " << var;
+}
+
+void Utils::DebugPrintLine(std::string text)
+{
+	if (DebugViewMode == ViewConsole)
+		std::cout << text << std::endl;
+}
+
+void Utils::DebugPrintLine(std::string text, int var)
+{
+	if (DebugViewMode == ViewConsole)
+		std::cout << text << ": " << var << std::endl;
+}
+
+

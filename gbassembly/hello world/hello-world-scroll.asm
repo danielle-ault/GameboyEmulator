@@ -56,8 +56,15 @@ CopyTilemap:
 .scroll
 	ld a, b
 	ld [rSCX], a
+	ld [rSCY], a
 	ld b, a
 	call WaitVBlank
+
+;	ld a, 5
+;.loop
+;	dec a
+;	jr nz, .loop
+
 ;	call WaitVBlank
 ;	call WaitVBlank
 ;	call WaitVBlank
@@ -72,8 +79,13 @@ Done:
 
 WaitVBlank:
 	ld a, [rLY]
-	;nop
-	;nop
+	
+	ld c, 50
+.loop
+	nop
+	dec c
+	jr nz, .loop
+	
 	cp 144
 	jp c, WaitVBlank
 	ret

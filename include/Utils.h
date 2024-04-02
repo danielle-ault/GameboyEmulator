@@ -13,6 +13,8 @@
 class Utils
 {
 public:
+	static DebugViewMode DebugViewMode;
+
 	static std::string GetBinary(long number, bool padWithZeros = true);
 	static std::string ReplaceSubstring(std::string string, std::string toReplace, std::string replaceWith);
 	static std::string GetHexString(u8 number, bool showPaddingZeros = false);
@@ -29,5 +31,10 @@ public:
 
 	static void DrawHorizontalLineOnConsole(int startX, int startY, int length);
 	static void DrawVerticalLineOnConsole(int startX, int startY, int length);
+
+	static void DebugPrint(std::string text);
+	static void DebugPrint(std::string text, int var);
+	static void DebugPrintLine(std::string text);
+	static void DebugPrintLine(std::string text, int var);
 };
 

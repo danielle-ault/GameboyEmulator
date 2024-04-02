@@ -12,6 +12,7 @@
 
 //#include "Window.h"
 #include "DMG.h"
+#include "Types.h"
 //#include "Utils.h"
 //#include "Tile.h"
 
@@ -28,11 +29,11 @@ void GoDownNumInstructions(int numInstructions);
 
 void ResizeCallback(GLFWwindow* window, int width, int height);
 void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void SwitchMode();
 
 void RunTests();
 
-enum DebugViewMode { ViewCPU, ViewRAM };
-enum DebugViewMode DebugViewMode = ViewCPU;
+//enum DebugViewMode DebugViewMode = ViewConsole;
 u16 RAMDisplayStartAddress = 0xFF40;
 
 int FirstVisibleInstruction = 0;
