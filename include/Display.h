@@ -31,6 +31,10 @@ public:
 	static const int SCREEN_WIDTH = 160;
 	static const int SCREEN_HEIGHT = 144;
 	static const int VERTICAL_BLANKING_PERIOD = 10;
+	static const int OAM_SCAN_DOTS = 80;
+	static const int DRAWING_OAM_PENALTY_DEFAULT = 12;
+	static const int MIN_HORIZONTAL_BLANKING_PERIOD = 87;
+	static const int MAX_HORIZONTAL_BLANKING_PERIOD = 204;
 
 	// Defined in Display.cpp
 	static Color COLOR_0;
@@ -112,14 +116,16 @@ public:
 	void Cleanup();
 
 	void DrawNextPixel(u8* memory);
-	u8 GetCurrentPixelX();
+	u16 GetCurrentPixelX();
 	u8 GetCurrentPixelY();
 
 	void DrawTile(Tile* tile, u8 x, u8 y);
 	void DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY);
 
+	void SetColor(u8 index, u8 colorValue);
+
 //private:
-	u8 CurrentPixelX = 0;
+	u16 CurrentPixelX = 0;
 	u8 CurrentPixelY = 0;
 
 	void DrawPixel(u8 x, u8 y, float r, float g, float b);

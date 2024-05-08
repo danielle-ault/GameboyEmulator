@@ -134,7 +134,9 @@ public:
 
 	const int MEMORY_OPERATION_WIDTH = 25;
 
-	bool SimulationPaused = false;
+	// Settings TODO These should be somewhere else
+	bool SimulationPaused = true;
+	bool DisplayRegisterPairs = true;
 
 	// Other devices
 	Display Display;
@@ -183,6 +185,7 @@ public:
 
 	// When passed RegisterPair::AF, gets RegisterPair::SP
 	u16 GetRegisterPairValue(RegisterPair regPair);
+	u16 GetAFRegisterPairValue();
 	// When passed RegisterPair::AF, sets RegisterPair::SP
 	void SetRegisterPairValue(RegisterPair regPair, u16 value);
 	// When passed RegisterPair::AF, sets RegisterPair::SP
@@ -218,10 +221,14 @@ public:
 	
 	void DisplayStateInfo();
 	void DisplayStateInfo(int firstVisibleInstruction, int firstVisibleMemoryOperation);
+	void DisplayValueGeneric(std::string name, u8 value, short x, short y);
 	void DisplayValueGeneric(std::string name, u16 value, short x, short y);
 	void DisplayRegister(Register reg, short x, short y);
+	void Display16BitRegister(RegisterPair regPair, short x, short y);
 	void DisplayFlags(int x, int y);
-	void DisplayAllRegisters(short x, short y);
+	void DisplayAllRegisters(short x, short y, bool is16bit);
+	void DisplayAll8BitRegisters(short x, short y);
+	void DisplayAll16BitRegisters(short x, short y);
 
 	void DisplayRAMInfo();
 	void DisplayRAMLine(int y, u16 startAddress, u8 numBytes, int numBytesWide);
@@ -688,6 +695,92 @@ public:
 	static const u8 EI   = 0b11'111'011;
 	static const u8 HALT = 0b01'110'110;
 	static const u8 STOP = 0b00'010'000;
+
+	const std::vector<u8> INSTRUCTIONS = {
+		LD_R_R,
+		LD_R_N,
+		LD_R_HL,
+		LD_HL_R,
+		LD_HL_N,
+		LD_A_BC,
+		LD_A_DE,
+		LD_A_C,
+		LD_C_A,
+		LD_A_N,
+		LD_N_A,
+		LD_A_NN,
+		LD_NN_A,
+		LD_A_HLI,
+		LD_A_HLD,
+		LD_BC_A ,
+		LD_DE_A ,
+		LD_HLI_A,
+		LD_HLD_A,
+
+		LD_DD_NN ,
+		LD_SP_HL ,
+		PUSH_QQ  ,
+		POP_QQ   ,
+		LDHL_SP_E,
+		LD_NN_SP ,
+
+		ADD_A_R ,
+		ADD_A_N ,
+		ADD_A_HL,
+		ADC_A_R ,
+		ADC_A_N ,
+		ADC_A_HL,
+		SUB_R   ,
+		SUB_N   ,
+		SUB_HL  ,
+		SBC_A_R ,
+		SBC_A_N ,
+		SBC_A_HL,
+		AND_R   ,
+		AND_N   ,
+		AND_HL  ,
+		OR_R    ,
+		OR_N    ,
+		OR_HL   ,
+		XOR_R   ,
+		XOR_N   ,
+		XOR_HL  ,
+		CP_R    ,
+		CP_N    ,
+		CP_HL   ,
+		INC_R   ,
+		INC_HL  ,
+		DEC_R   ,
+		DEC_HL  ,
+
+		ADD_HL_SS,
+		ADD_SP_E ,
+		INC_SS   ,
+		DEC_SS   ,
+
+		JP_NN,
+		JP_CC_NN,
+		JR_E,
+		JR_CC_E,
+		JP_HL,
+
+		CALL_NN   ,
+		CALL_CC_NN,
+		RET       ,
+		RETI      ,
+		RET_CC    ,
+		RST_T     ,
+
+		DAA ,
+		CPL ,
+		NOP ,
+		CCF ,
+		SCF ,
+		DI  ,
+		EI  ,
+		HALT,
+		STOP,
+	};
 
 	const std::map<u8, std::string> INSTRUCTION_STRINGS = {
 		{LD_R_R,   "LD r,r'"},

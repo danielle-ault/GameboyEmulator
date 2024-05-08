@@ -84,5 +84,14 @@
   <ItemGroup>
     <None Include="shaders\shader.frag" />
     <None Include="shaders\shader.vert" />
+    <None Include="blargg-tests\cgb_sound.zip" />
+    <None Include="blargg-tests\cpu_instrs.gb" />
+    <None Include="blargg-tests\cpu_instrs.zip" />
+    <None Include="blargg-tests\dmg_sound.zip" />
+    <None Include="blargg-tests\dmg_sound-2.zip" />
+    <None Include="blargg-tests\instr_timing.zip" />
+    <None Include="blargg-tests\mem_timing.zip" />
+    <None Include="blargg-tests\mem_timing-2.zip" />
+    <None Include="blargg-tests\oam_bug-2.zip" />
   </ItemGroup>
 </Project>

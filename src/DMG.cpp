@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 
 #include "DMG.h"
 #include "Utils.h"
@@ -20,8 +21,8 @@ DMG::DMG(std::vector<u8> ROM)
 	}
 
 	Registers.A = 0x01;
-	Registers.F = 0x00;
-	Registers.B = 0xFF;
+	Registers.F = 0b1011'0000; // TODO: calculate H and CY based on cartridge header checksum
+	Registers.B = 0x00;
 	Registers.C = 0x13;
 	Registers.D = 0x00;
 	Registers.E = 0xD8;
@@ -38,7 +39,7 @@ DMG::DMG(std::vector<u8> ROM)
 void DMG::RunCycle()
 {
 	if (GETBIT(Memory[0xFF40], 7))
-		for (int i = 0; i < 4; i++)
+		for (int i = 0; i < 4; i++) 
 			Display.DrawNextPixel(Memory);
 
 	u8 scanline = Display.GetCurrentPixelY();
@@ -97,6 +98,25 @@ int DMG::SetMemory(u16 address, u8 value)
 			Display.TileMaps[i]->UpdateTile(tileIndex, value, Display.TileBank3, Display.TileBank2); // TODO swap which tilebank is used based on control register
 		}
 	}
+
+	//
+	// Registers
+	//
+
+	if (Memory[0xFF02] == 0x81)
+	{
+		char c = Memory[0xFF01];
+		Utils::DebugPrint(c);
+	}
+	
+	// BGP - Background Palette
+	if (address == 0xFF47)
+	{
+		Display.SetColor(0, value & 0b0000'0011);
+		Display.SetColor(1, (value & 0b0000'1100) >> 2);
+		Display.SetColor(2, (value & 0b0011'0000) >> 4);
+		Display.SetColor(3, (value & 0b1100'0000) >> 6);
+	}
 	
 	return 0;
 }
@@ -121,7 +141,7 @@ u8 DMG::GetNextImmediate()
 {
 	RunCycle();
 	ProgramCounter++;
-	return ROM[ProgramCounter];
+	return Memory[ProgramCounter];
 }
 
 u16 DMG::GetNextImmediateAddress()
@@ -203,6 +223,13 @@ u16 DMG::GetRegisterPairValue(RegisterPair regPair)
 		break;
 	}
 
+	return (high << 8) | low;
+}
+
+u16 DMG::GetAFRegisterPairValue()
+{
+	u8 high = Registers.A;
+	u8 low = Registers.F;
 	return (high << 8) | low;
 }
 
@@ -354,7 +381,11 @@ u8 DMG::GetMaskedInstruction(u8 instruction)
 	u8 maskedRegisterPair = REGISTER_PAIR_MASK & instruction;
 	u8 maskedJumpCondition = JUMP_CONDITION_MASK & instruction;
 
-	if (INSTRUCTION_STRINGS.find(instruction) != INSTRUCTION_STRINGS.end())
+	//if (INSTRUCTION_STRINGS.find(instruction) != INSTRUCTION_STRINGS.end())
+	//	return instruction;
+	std::vector<u8>::const_iterator iterator;
+	iterator = std::find(INSTRUCTIONS.begin(), INSTRUCTIONS.end(), instruction);
+	if (iterator != INSTRUCTIONS.end())
 		return instruction;
 
 	switch (maskedRegister1)
@@ -445,16 +476,16 @@ void DMG::SetFlagRegister(u8 value)
 u8 DMG::GetFlagRegister()
 {
 	u8 Z = GetFlag(Flag::Z);
-	u8 N = GetFlag(Flag::Z);
-	u8 H = GetFlag(Flag::Z);
-	u8 CY = GetFlag(Flag::Z);
+	u8 N = GetFlag(Flag::N);
+	u8 H = GetFlag(Flag::H);
+	u8 CY = GetFlag(Flag::CY);
 	return (Z << 7) | (N << 6) | (H << 5) | (CY << 4);
 }
 
 void DMG::ProcessNextInstruction(bool updateDisplay)
 {
 	RunCycle();
-	CurrentInstruction = ROM[ProgramCounter];
+	CurrentInstruction = Memory[ProgramCounter];
 	CurrentInstructionMasked = GetMaskedInstruction(CurrentInstruction);
 
 	if (!SkipDisplayInfo)
@@ -464,8 +495,8 @@ void DMG::ProcessNextInstruction(bool updateDisplay)
 	}
 	
 	u8 instruction = CurrentInstruction;
-	u8 nextByte = ROM[ProgramCounter + 1];
-	u8 nextNextByte = ROM[ProgramCounter + 2];
+	//u8 nextByte = Memory[ProgramCounter + 1];
+	//u8 nextNextByte = Memory[ProgramCounter + 2];
 
 	switch (CurrentInstructionMasked)
 	{
@@ -683,13 +714,19 @@ void DMG::DisplayStateInfo(int firstVisibleInstruction, int firstVisibleMemoryOp
 	DisplayInstructionHistory(consoleWidth, consoleHeight, firstVisibleInstruction);
 	DisplayMemoryOperationHistory(consoleWidth, consoleHeight, firstVisibleMemoryOperation);
 	Utils::DrawVerticalLineOnConsole(CONSOLE_INSTRUCTION_TOTAL_WIDTH, 0, Utils::GetConsoleHeight());
-	DisplayAllRegisters(CONSOLE_INSTRUCTION_TOTAL_WIDTH + 2, 0);
+	DisplayAllRegisters(CONSOLE_INSTRUCTION_TOTAL_WIDTH + 2, 0, DisplayRegisterPairs);
+}
+
+void DMG::DisplayValueGeneric(std::string name, u8 value, short x, short y)
+{
+	Utils::gotoxy(x, y);
+	std::cout << name << ": " << Utils::GetHexString(value, true);
 }
 
 void DMG::DisplayValueGeneric(std::string name, u16 value, short x, short y)
 {
 	Utils::gotoxy(x, y);
-	std::cout << name << ": " << std::hex << value;
+	std::cout << name << ": " << Utils::GetHexString(value, true);
 }
 
 void DMG::DisplayRegister(Register reg, short x, short y)
@@ -698,6 +735,13 @@ void DMG::DisplayRegister(Register reg, short x, short y)
 	std::cout << GetRegisterName((u8)reg);
 	std::cout << ": " << std::hex << (u16)GetRegisterValue(reg) << " ";
 	//Utils::gotoxy(0, 0);
+}
+
+void DMG::Display16BitRegister(RegisterPair regPair, short x, short y)
+{
+	Utils::gotoxy(x, y);
+	std::cout << GetRegisterPairName(regPair);
+	std::cout << ": " << Utils::GetHexString(GetRegisterPairValue(regPair), true) << " ";
 }
 
 void DMG::DisplayFlags(int x, int y)
@@ -711,7 +755,19 @@ void DMG::DisplayFlags(int x, int y)
 	std::cout << " |  " << GetFlag(Flag::CY);
 }
 
-void DMG::DisplayAllRegisters(short x, short y)
+void DMG::DisplayAllRegisters(short x, short y, bool is16bit)
+{
+	if (is16bit)
+	{
+		DisplayAll16BitRegisters(x, y);
+	}
+	else
+	{
+		DisplayAll8BitRegisters(x, y);
+	}
+}
+
+void DMG::DisplayAll8BitRegisters(short x, short y)
 {
 	DisplayRegister(Register::A, x, y);
 	DisplayRegister(Register::B, x, y + 1);
@@ -720,11 +776,28 @@ void DMG::DisplayAllRegisters(short x, short y)
 	DisplayRegister(Register::E, x, y + 4);
 	DisplayRegister(Register::H, x, y + 5);
 	DisplayRegister(Register::L, x, y + 6);
-	
-	DisplayValueGeneric("PC", ProgramCounter, x + 7, y);
-	DisplayValueGeneric("SP", StackPointer, x + 7, y + 1);
+
+	DisplayValueGeneric("SP", StackPointer, x + 7, y);
+	DisplayValueGeneric("PC", ProgramCounter, x + 7, y + 1);
 
 	DisplayFlags(x, y + 8);
+}
+
+void DMG::DisplayAll16BitRegisters(short x, short y)
+{
+	DisplayValueGeneric("AF", GetAFRegisterPairValue(), x, y);
+	Display16BitRegister(RegisterPair::BC, x, y + 1);
+	Display16BitRegister(RegisterPair::DE, x, y + 2);
+	Display16BitRegister(RegisterPair::HL, x, y + 3);
+	DisplayValueGeneric("SP", StackPointer, x, y + 4);
+	DisplayValueGeneric("PC", ProgramCounter, x, y + 5);
+
+	DisplayFlags(x, y + 7);
+
+	DisplayValueGeneric("LY", Memory[0xFF44], x, y + 10);
+
+	DisplayValueGeneric("X", Display.GetCurrentPixelX(), x, y + 12);
+	DisplayValueGeneric("Y", Display.GetCurrentPixelY(), x, y + 13);
 }
 
 void DMG::DisplayRAMInfo()
@@ -1172,7 +1245,8 @@ void DMG::PopFromStackToRegisterPair(u8 instruction)
 	u8 low = GetMemory(StackPointer);
 	u8 high = GetMemory(StackPointer + 1);
 	u16 value = (high << 8) | low;
-	SetRegisterPairValue(regPair, value);
+	SetRegisterPairValuePushPop(regPair, value);
+	StackPointer = StackPointer + 2;
 
 	ProgramCounter += 1;
 
@@ -1236,6 +1310,8 @@ void DMG::OperationFromRegister(Operation operation, u8 instruction)
 	case Operation::SUB:
 	case Operation::SBC:
 	case Operation::AND:
+	case Operation::OR:
+	case Operation::XOR:
 		SetRegisterValue(Register::A, result);
 		break;
 	}
@@ -1254,6 +1330,8 @@ void DMG::OperationFromImmediate(Operation operation, u8 instruction)
 	case Operation::SUB:
 	case Operation::SBC:
 	case Operation::AND:
+	case Operation::OR:
+	case Operation::XOR:
 		SetRegisterValue(Register::A, result);
 		break;
 	}
@@ -1276,6 +1354,8 @@ void DMG::OperationFromHL(Operation operation, u8 instruction)
 	case Operation::SUB:
 	case Operation::SBC:
 	case Operation::AND:
+	case Operation::OR:
+	case Operation::XOR:
 		SetRegisterValue(Register::A, result);
 		break;
 	}
@@ -1786,9 +1866,9 @@ void DMG::JumpToImmediateIfTrue(u8 instruction)
 
 void DMG::JumpToOffset()
 {
-	i8 offset = GetNextImmediate();
+	i8 offset = GetNextImmediate() + 1; // TODO: documentation says to add 2, but it actually works if I only add 1
 	RunCycle();
-	ProgramCounter += offset + 1; // TODO: documentation says to add 2, but it actually works if I only add 1
+	ProgramCounter += offset; 
 
 	if (!SkipDisplayInfo)
 	{
@@ -1799,13 +1879,13 @@ void DMG::JumpToOffset()
 
 void DMG::JumpToOffsetIfTrue(u8 instruction)
 {
-	i8 offset = GetNextImmediate();
+	i8 offset = GetNextImmediate() + 1; // TODO: documentation says to add 2, but it actually works if I only add 1
 	RunCycle();
 
 	Condition condition = (Condition)((instruction & 0b00'011'000) >> 3);
 	if (TestCondition(condition))
 	{
-		ProgramCounter += offset + 2;
+		ProgramCounter += offset;
 	}
 	else
 	{
@@ -1827,9 +1907,10 @@ void DMG::JumpToHL()
 
 void DMG::CallImmediate()
 {
-	//ProgramCounter += 3; // TODO: this line makes it behave like the documentation says, even though it doesn't mention this step in the instruction steps
+	ProgramCounter += 3; // TODO: this line makes it behave like the documentation says, even though it doesn't mention this step in the instruction steps
 	SetMemory(StackPointer - 1, (ProgramCounter & 0xFF00) >> 8);
 	SetMemory(StackPointer - 2, ProgramCounter & 0x00FF);
+	ProgramCounter -= 3;
 	ProgramCounter = GetNextImmediateAddress();
 	RunCycle(); // timing not documented, but it seems that setting StackPointer takes a cycle?
 	StackPointer = StackPointer - 2;
@@ -1855,7 +1936,7 @@ void DMG::ReturnFromSubroutine()
 	RunCycle();
 	StackPointer = StackPointer + 2;
 
-	ProgramCounter += 3; // TODO: don't think this is quite right, need to investigate the timing of adding 1 to ProgramCounter. Maybe need to put it before the bulk of work in instructions? at least in call instructions
+	//ProgramCounter += 3; // TODO: don't think this is quite right, need to investigate the timing of adding 1 to ProgramCounter. Maybe need to put it before the bulk of work in instructions? at least in call instructions
 }
 
 void DMG::ReturnFromInterrupt()

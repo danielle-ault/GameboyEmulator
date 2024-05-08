@@ -23,6 +23,13 @@
 
 int main()
 {
+	//filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world-scroll.gb";
+	//filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/blargg-tests/cpu_instrs.gb";
+	//filepathToROM = "D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb";
+	//filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/test instructions/test_instructions.gb";
+	//filepathToROM = Utils::OpenFileDialog("D:/Creative/Programming/c++/GameBoyEmulator/");
+	filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/blargg-tests/cpu_instrs/individual/06-ld r,r.gb";
+	
 	//RunTests();
 	Utils::DebugViewMode = ViewConsole;
 
@@ -55,7 +62,7 @@ int main()
 		if (!CPU->SimulationPaused)
 		{
 			CPU->ProcessNextInstruction(false);
-			bool updateDisplay = i % 100000 == 0;
+			bool updateDisplay = i % 1000 == 0;
 			if (updateDisplay)
 			{
 				switch (Utils::DebugViewMode)
@@ -68,28 +75,19 @@ int main()
 					break;
 				}
 			}
-			i++;
+		}
+
+		// basically a breakpoint
+		if (CPU->ProgramCounter == 0xC7F9 && CPU->SimulationPaused == false)
+		{
+			CPU->SimulationPaused = true;
+			CPU->DisplayStateInfo();
 		}
 		
+		if (i % 1000 == 0)
+			glfwPollEvents();
 
-		//CPU->Display.DrawGraphics();
-		//window.SwapBuffersAndPollEvents();
-		glfwPollEvents();
-
-		//auto end = std::chrono::system_clock::now();
-		//auto waitTime = std::chrono::nanoseconds(239) - (start - end);
-		//std::this_thread::sleep_for(waitTime);
-		
-		
-		//char input = (char)_getch();
-
-		//switch (input)
-		//{
-		//case 13: goto exit_loop; // enter key
-		//case 32: ProcessNumInstructions(CPU, 1); break; // spacebar
-		//case 'S':
-		//case 's': ProcessNumInstructions(CPU, 10); break; 
-		//}
+		i++;
 	}
 //exit_loop:;
 
@@ -186,6 +184,7 @@ void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int
 	{
 		switch (key)
 		{
+		case GLFW_KEY_BACKSPACE: ResetSimulation(); break;
 		case GLFW_KEY_SPACE: ProcessNumInstructions(CPU, 1); break;
 		case GLFW_KEY_S: ProcessNumInstructions(CPU, 200); break;
 		case GLFW_KEY_DOWN: GoDownNumInstructions(1); break;
@@ -252,6 +251,21 @@ void SwitchMode()
 		CPU->DisplayStateInfo();
 		break;
 	}
+}
+
+void ResetSimulation()
+{
+	DebugViewMode viewMode = Utils::DebugViewMode;
+
+	std::ifstream input(filepathToROM, std::ios::binary);
+	std::vector<uint8_t> ROM(std::istreambuf_iterator<char>(input), {});
+
+	DMG cpu_temp = DMG(ROM);
+	CPU = &cpu_temp;
+
+	CPU->SimulationPaused = false;
+
+	Utils::DebugViewMode = viewMode;
 }
 
 void RunTests()

@@ -21,6 +21,8 @@ Color Display::COLORS[] = { COLOR_0, COLOR_1, COLOR_2, COLOR_3 };
 
 Display::Display(u8* memory)
 {
+	//PixelColors = std::vector<Color>(SCREEN_WIDTH * SCREEN_HEIGHT);
+
 	u16 tileDataStartAddress = 0x8000;
 	int numTileBanks = sizeof(TileBanks) / sizeof(TileBanks[0]);
 	int numTilesPerBank = 128;
@@ -306,13 +308,13 @@ void Display::DrawNextPixel(u8* memory)
 {
 	CurrentPixelX++;
 
-	if (CurrentPixelX == SCREEN_WIDTH)
-	{
+	if (CurrentPixelX == OAM_SCAN_DOTS + SCREEN_WIDTH + DRAWING_OAM_PENALTY_DEFAULT + MAX_HORIZONTAL_BLANKING_PERIOD - 1)
+	{	
 		CurrentPixelX = 0;
 		CurrentPixelY++;
 	}
 
-	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
+	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD - 1)
 	{
 		//u16 tileMapAddress = GETBIT(memory[0xFF40], 4) ? 0x9C00 : 0x9800; 
 		//TileMap tileMap = TileMap(tileMapAddress, memory, TileBank3, TileBank2);
@@ -320,8 +322,15 @@ void Display::DrawNextPixel(u8* memory)
 
 		DrawGraphics();
 		Window->SwapBuffers();
+	}
+
+	if (CurrentPixelY == SCREEN_HEIGHT + VERTICAL_BLANKING_PERIOD)
+	{
 		CurrentPixelY = 0;
 	}
+
+	Utils::DebugPrintLine("X: " + CurrentPixelX);
+	Utils::DebugPrintLine("Y: " + CurrentPixelY);
 
 	// Get Pixel Color from Tile
 	
@@ -350,9 +359,9 @@ void Display::DrawNextPixel(u8* memory)
 	//	DrawPixel(CurrentPixelX, CurrentPixelY, color);
 }
 
-u8 Display::GetCurrentPixelX()
+u16 Display::GetCurrentPixelX()
 {
-	return CurrentPixelX;
+	return CurrentPixelX; // TODO: pretty sure there's more to it than this, and I'm not sure I even need this function
 }
 
 u8 Display::GetCurrentPixelY()
@@ -364,21 +373,21 @@ void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 {
 	for (int x = 0; x < 8; x++)
 	{
-		int newX = xPos + x;
-		if (newX >= SCREEN_WIDTH)
+		int offsetX = xPos + x;
+		if (offsetX >= SCREEN_WIDTH)
 			continue;
 
 		for (int y = 0; y < 8; y++)
 		{
-			int newY = yPos + (7 - y);
-			if (newY >= SCREEN_HEIGHT) 
+			int offsetY = yPos + (7 - y);
+			if (offsetY >= SCREEN_HEIGHT) 
 				continue;
 			//if (newY > 255) newY -= 255;
 			//if (newY < 0) newY += 255;
 			//if (newX > 255) newX -= 255;
 			//if (newX < 0) newX += 255;
 
-			int colorIndex = newY * SCREEN_WIDTH + newX;
+			int colorIndex = offsetY * SCREEN_WIDTH + offsetX;
 			
 			int pixelIndex = y * 8 + x;
 			if (colorIndex >= 0 && colorIndex < SCREEN_WIDTH * SCREEN_HEIGHT)
@@ -389,8 +398,8 @@ void Display::DrawTile(Tile* tile, u8 xPos, u8 yPos)
 
 void Display::DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY)
 {
-	Utils::DebugPrint("x", (int)scrollX);
-	Utils::DebugPrintLine(",  y", (int)scrollY);
+	//Utils::DebugPrint("x", (int)scrollX);
+	//Utils::DebugPrintLine(",  y", (int)scrollY);
 
 	int numTiles = 32 * 32;
 	for (int x = 0; x < SCREEN_WIDTH; x += 8)
@@ -400,6 +409,20 @@ void Display::DrawTileMap(TileMap* tileMap, u8 scrollX, u8 scrollY)
 			int tileIndex = (y / 8) * 32 + (x / 8);
 			DrawTile(tileMap->Tiles[tileIndex], x - scrollX, SCREEN_HEIGHT - y - 8 + scrollY);
 		}
+	}
+}
+
+void Display::SetColor(u8 index, u8 colorValue)
+{
+	if (index > 3)
+		return;
+
+	switch (colorValue)
+	{
+	case 0: COLORS[3 - index] = COLOR_0;
+	case 1: COLORS[3 - index] = COLOR_1;
+	case 2: COLORS[3 - index] = COLOR_2;
+	case 3: COLORS[3 - index] = COLOR_3;
 	}
 }
 

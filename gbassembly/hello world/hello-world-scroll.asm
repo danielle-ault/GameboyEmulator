@@ -7,6 +7,9 @@ SECTION "Header", ROM0[$100]
 	ds $150 - @, 0 ; Make room for the header
 
 EntryPoint:
+	ld a, %11111111
+	ld [rBGP], a
+	
 	; Shut down audio circuitry
 	ld a, 0
 	ld [rNR52], a
@@ -48,9 +51,8 @@ CopyTilemap:
 	ld a, LCDCF_ON | LCDCF_BGON
 	ld [rLCDC], a
 
-	; During the first (blank) frame, initialize display registers
-	ld a, %11100100
-	ld [rBGP], a
+	ld b, 35
+	call FadeInFromWhite
 
 	ld b, 0
 .scroll
@@ -58,20 +60,12 @@ CopyTilemap:
 	ld [rSCX], a
 	ld [rSCY], a
 	ld b, a
+	;inc b
 	call WaitVBlank
 
-;	ld a, 5
-;.loop
-;	dec a
-;	jr nz, .loop
-
-;	call WaitVBlank
-;	call WaitVBlank
-;	call WaitVBlank
-;	call WaitVBlank
-;	call WaitVBlank
 	inc b
 	jr .scroll
+	jp Done
 
 Done:
 	jp Done
@@ -80,7 +74,7 @@ Done:
 WaitVBlank:
 	ld a, [rLY]
 	
-	ld c, 50
+	ld c, 60
 .loop
 	nop
 	dec c
@@ -90,6 +84,53 @@ WaitVBlank:
 	jp c, WaitVBlank
 	ret
 
+; Runs WaitVBlank b number of times
+WaitVBlankNTimes:
+	ld d, b
+.loop2
+	call WaitVBlank
+	dec d
+	jr nz, .loop2
+	ret
+
+FadeInFromBlack:
+	ld a, %11111111
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	ld a, %11111110
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	ld a, %11111001
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	; During the first (blank) frame, initialize display registers
+	ld a, %11100100
+	ld [rBGP], a
+
+	ret
+
+FadeInFromWhite:
+	ld a, %00000000
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	ld a, %01000000
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	ld a, %10010000
+	ld [rBGP], a
+	call WaitVBlankNTimes
+
+	; During the first (blank) frame, initialize display registers
+	ld a, %11100100
+	ld [rBGP], a
+	;call WaitVBlankNTimes
+
+	ret
 
 SECTION "Tile data", ROM0
 

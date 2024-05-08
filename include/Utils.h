@@ -34,7 +34,10 @@ public:
 
 	static void DebugPrint(std::string text);
 	static void DebugPrint(std::string text, int var);
+	static void DebugPrint(char c);
 	static void DebugPrintLine(std::string text);
 	static void DebugPrintLine(std::string text, int var);
+
+	static std::string OpenFileDialog(std::string startPath = "");
 };
 

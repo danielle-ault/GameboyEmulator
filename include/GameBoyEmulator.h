@@ -16,9 +16,9 @@
 //#include "Utils.h"
 //#include "Tile.h"
 
-std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/hello world/hello-world-scroll.gb";
-//std::string filepathToROM = "D:\\Emulation\\ROMs\\Gameboy\\Pokemon - Blue Version (UE)[!]\\Pokemon Blue.gb";
-//std::string filepathToROM = "D:/Creative/Programming/c++/GameBoyEmulator/gbassembly/test instructions/test_instructions.gb";
+std::string filepathToROM = "";
+
+
 
 void TestFlagInputOutput(DMG cpu);
 void ConsoleCursorToXY(short x, short y);
@@ -30,6 +30,7 @@ void GoDownNumInstructions(int numInstructions);
 void ResizeCallback(GLFWwindow* window, int width, int height);
 void KeypressCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void SwitchMode();
+void ResetSimulation();
 
 void RunTests();
 
